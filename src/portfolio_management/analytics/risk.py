@@ -137,7 +137,12 @@ class RiskAnalyzer:
 
         Args:
             risk_free_rate: Annual risk-free rate for calculations.
+
+        Raises:
+            ValueError: If risk_free_rate is outside reasonable bounds.
         """
+        if not -1 <= risk_free_rate <= 1:
+            raise ValueError("risk_free_rate must be between -1 and 1 (e.g., 0.05 for 5%)")
         self.risk_free_rate = risk_free_rate
 
     def calculate_returns(

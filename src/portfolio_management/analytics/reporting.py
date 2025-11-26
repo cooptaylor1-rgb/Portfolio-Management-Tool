@@ -726,10 +726,9 @@ class ReportGenerator:
                 return f"${value / 1000000:.2f}M"
             elif abs(value) >= 1000:
                 return f"${value / 1000:.1f}K"
-            elif "_pct" in str(value) or abs(value) <= 100:
-                return f"{value:.2f}%"
             else:
-                return f"{value:.4f}"
+                # For values between -100 and 100, assume percentage
+                return f"{value:.2f}"
         elif isinstance(value, Decimal):
             return f"${float(value):,.2f}"
         elif isinstance(value, bool):

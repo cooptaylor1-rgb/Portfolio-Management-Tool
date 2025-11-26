@@ -12,6 +12,9 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import optimize
 
+# Constants
+BASIS_POINTS_PER_UNIT = 10000  # Conversion factor: 1 = 10000 bps
+
 
 class OptimizationObjective(Enum):
     """Optimization objectives."""
@@ -572,7 +575,7 @@ class LiquidityAnalyzer:
 
         # Square-root impact model
         # Impact = volatility * sqrt(pct_adv)
-        market_impact_bps = volatility * np.sqrt(pct_adv) * 10000
+        market_impact_bps = volatility * np.sqrt(pct_adv) * BASIS_POINTS_PER_UNIT
 
         total_cost_bps = (spread_bps / 2) + market_impact_bps
 
