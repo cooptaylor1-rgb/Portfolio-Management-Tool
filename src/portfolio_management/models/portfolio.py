@@ -5,11 +5,10 @@ and fixed income securities, including allocation analysis and performance track
 """
 
 from dataclasses import dataclass, field
-from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from .securities import Equity, FixedIncome, Position, Security, SecurityType
+from .securities import Equity, Position, SecurityType
 
 
 @dataclass

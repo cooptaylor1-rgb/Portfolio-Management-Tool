@@ -1,3 +1,28 @@
+Metadata-Version: 2.4
+Name: portfolio-management-tool
+Version: 0.1.0
+Summary: A portfolio management tool for equity and fixed income portfolio management with statistical and risk analysis
+License: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Financial and Insurance Industry
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: scipy>=1.10.0
+Requires-Dist: requests>=2.28.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+
 # Portfolio Management Tool
 
 A comprehensive, institutional-grade portfolio management tool for equity and fixed income portfolio management with statistical and risk analysis.

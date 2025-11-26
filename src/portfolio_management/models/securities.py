@@ -3,7 +3,7 @@
 This module defines the base security classes for equities and fixed income instruments.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from enum import Enum
@@ -50,7 +50,7 @@ class Security:
 
     symbol: str
     name: str
-    security_type: SecurityType
+    security_type: SecurityType = SecurityType.EQUITY  # Default, overridden by subclasses
     currency: str = "USD"
 
     def __post_init__(self) -> None:
