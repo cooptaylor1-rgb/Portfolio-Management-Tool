@@ -97,7 +97,25 @@ A phenomenal, professional-grade portfolio management application that rivals Bl
    npm install
    ```
 
-3. **Start the development server**
+3. **Set up environment variables (Optional - for FactSet API)**
+   
+   Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Edit `.env` and add your FactSet API credentials:
+   ```
+   VITE_FACTSET_USERNAME=your_username
+   VITE_FACTSET_API_KEY=your_api_key
+   ```
+   
+   **⚠️ SECURITY NOTE**: 
+   - Never commit your `.env` file to version control
+   - The `.env` file is already protected by `.gitignore`
+   - Get credentials from: https://developer.factset.com/
+
+4. **Start the development server**
    ```bash
    npm run dev
    ```
@@ -183,12 +201,25 @@ Click the **"Help"** button in the header to access:
 - **Lucide React**: Clean, consistent icons
 - **CSS3**: Custom styling with CSS variables
 
-## 🔒 Privacy & Data
+## 🔒 Privacy & Security
 
-- **Local Storage**: All your data is stored locally in your browser
+### Data Storage
+- **Local Storage**: All your portfolio data is stored locally in your browser
 - **No Account Required**: Start tracking immediately without signing up
 - **No Server**: Your investment data never leaves your device
 - **Export/Import**: You can backup your data (browser local storage)
+
+### API Key Security
+- **Environment Variables**: API keys are stored in `.env` files (not committed to git)
+- **Protected by .gitignore**: The `.env` file is automatically excluded from version control
+- **Vite Prefix**: Only variables prefixed with `VITE_` are exposed to the client
+- **Optional Integration**: The app works with mock data if no API keys are provided
+
+### Best Practices
+1. Never share your `.env` file or API keys
+2. Use different API keys for development and production
+3. Rotate your API keys periodically
+4. Keep your `.env.example` file updated (without real credentials)
 
 ## ⚠️ Important Disclaimer
 

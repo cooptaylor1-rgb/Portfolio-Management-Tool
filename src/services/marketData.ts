@@ -8,8 +8,8 @@ const cache = new Map<string, { data: any; timestamp: number }>();
 // FactSet API Configuration
 // Get your API credentials from: https://developer.factset.com/
 const FACTSET_API_BASE = 'https://api.factset.com/content';
-const FACTSET_USERNAME = 'YOUR_FACTSET_USERNAME'; // Configure in .env
-const FACTSET_API_KEY = 'YOUR_FACTSET_API_KEY'; // Configure in .env
+const FACTSET_USERNAME = import.meta.env.VITE_FACTSET_USERNAME || '';
+const FACTSET_API_KEY = import.meta.env.VITE_FACTSET_API_KEY || '';
 
 // Helper function to create Basic Auth header for FactSet
 function getFactSetHeaders() {
@@ -31,7 +31,7 @@ export async function fetchStockPrice(symbol: string): Promise<number | null> {
 
   try {
     // Try FactSet API first
-    if (FACTSET_USERNAME !== 'YOUR_FACTSET_USERNAME' && FACTSET_API_KEY !== 'YOUR_FACTSET_API_KEY') {
+    if (FACTSET_USERNAME && FACTSET_API_KEY) {
       const response = await fetch(
         `${FACTSET_API_BASE}/factset-prices/v1/prices`,
         {
