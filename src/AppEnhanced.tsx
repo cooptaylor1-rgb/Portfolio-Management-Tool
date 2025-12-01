@@ -17,7 +17,8 @@ import { EnvironmentBanner } from './components/EnvironmentBanner'
 import { ConfirmationModal } from './components/ConfirmationModal'
 import { AuditTrail, type AuditEntry } from './components/AuditTrail'
 import { LoadingTableSkeleton, ErrorMessage } from './components/UIComponents'
-import { HelpCircle, BarChart3, Shield, Bell, Newspaper, Eye, Moon, Sun } from 'lucide-react'
+import { AISearchModal } from './components/AISearchModal'
+import { HelpCircle, BarChart3, Shield, Bell, Newspaper, Eye, Moon, Sun, Sparkles } from 'lucide-react'
 import { fetchHistoricalData, fetchNews, calculateRiskMetrics, fetchMarketData } from './services/marketData'
 import { generateAlerts } from './services/analytics'
 
@@ -109,6 +110,7 @@ function AppEnhanced() {
   // New institutional features
   const [environment, setEnvironment] = useState<Environment>('simulation')
   const [showCommandPalette, setShowCommandPalette] = useState(false)
+  const [showAISearch, setShowAISearch] = useState(false)
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [confirmationConfig, setConfirmationConfig] = useState<any>(null)
   const [auditLog, setAuditLog] = useState<AuditEntry[]>(() => {
@@ -170,6 +172,13 @@ function AppEnhanced() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault()
         setShowCommandPalette(true)
+        return
+      }
+
+      // AI Search: Ctrl+/ or Cmd+/
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault()
+        setShowAISearch(true)
         return
       }
 
@@ -407,6 +416,18 @@ function AppEnhanced() {
         }}
       />
 
+      {/* AI Search Modal - Ctrl+/ */}
+      <AISearchModal
+        isOpen={showAISearch}
+        onClose={() => setShowAISearch(false)}
+        investments={investments}
+        stats={calculateStats()}
+        onInvestmentSelect={(_inv) => {
+          setActiveView('dashboard')
+          setShowAISearch(false)
+        }}
+      />
+
       {/* Confirmation Modal */}
       {showConfirmation && confirmationConfig && (
         <ConfirmationModal
@@ -426,10 +447,17 @@ function AppEnhanced() {
           <h1>📊 Portfolio Manager Pro</h1>
           <p className="tagline">Institutional-grade insights for everyone</p>
           <div className="keyboard-hint">
-            Press <kbd className="kbd">Ctrl+K</kbd> or <kbd className="kbd">/</kbd> to search
+            Press <kbd className="kbd">Ctrl+K</kbd> to navigate or <kbd className="kbd">Ctrl+/</kbd> for AI search
           </div>
         </div>
         <div className="header-actions">
+          <button 
+            className="header-btn"
+            onClick={() => setShowAISearch(true)}
+            title="AI Search (Ctrl+/)"
+          >
+            <Sparkles size={20} />
+          </button>
           <button 
             className="header-btn"
             onClick={() => setDarkMode(!darkMode)}
