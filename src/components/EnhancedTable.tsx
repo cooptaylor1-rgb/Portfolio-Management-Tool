@@ -106,7 +106,7 @@ export default function EnhancedTable({ investments, onDelete, onUpdate }: Enhan
     return groups;
   }, [sortedInvestments, groupBy]);
 
-  const handleSort = (key: SortConfig['key']) => {
+  const handleSort = (key: NonNullable<SortConfig>['key']) => {
     setSortConfig(current => {
       if (!current || current.key !== key) {
         return { key, direction: 'asc' };

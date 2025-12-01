@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { 
-  Investment, PortfolioStats, Alert, WatchlistItem, NewsItem, 
+  Investment, PortfolioStats, Alert, NewsItem, 
   PerformanceData, RiskMetrics 
 } from './types'
 import Dashboard from './components/Dashboard'
@@ -11,7 +11,7 @@ import PerformanceChart from './components/PerformanceChart'
 import RiskAnalysis from './components/RiskAnalysis'
 import AlertsPanel from './components/AlertsPanel'
 import NewsFeed from './components/NewsFeed'
-import Watchlist from './components/Watchlist'
+import { WatchlistComponent as Watchlist } from './components/Watchlist'
 import { CommandPalette } from './components/CommandPalette'
 import { EnvironmentBanner } from './components/EnvironmentBanner'
 import { ConfirmationModal } from './components/ConfirmationModal'
@@ -91,16 +91,17 @@ function AppEnhanced() {
     return getSamplePortfolio()
   })
   
-  const [watchlist, setWatchlist] = useState<WatchlistItem[]>(() => {
-    const saved = localStorage.getItem('watchlist')
-    return saved ? JSON.parse(saved) : []
-  })
+  // Watchlist state now managed internally by WatchlistComponent
+  // const [watchlist, setWatchlist] = useState<WatchlistItem[]>(() => {
+  //   const saved = localStorage.getItem('watchlist')
+  //   return saved ? JSON.parse(saved) : []
+  // })
 
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [news, setNews] = useState<NewsItem[]>([])
   const [performanceData, setPerformanceData] = useState<PerformanceData[]>([])
   const [riskMetrics, setRiskMetrics] = useState<RiskMetrics | null>(null)
-  const [marketDataMap, setMarketDataMap] = useState<Map<string, any>>(new Map())
+  // const [marketDataMap, setMarketDataMap] = useState<Map<string, any>>(new Map())
   
   const [activeView, setActiveView] = useState<'dashboard' | 'analytics' | 'risk' | 'alerts' | 'news' | 'watchlist'>('dashboard')
   const [showAddForm, setShowAddForm] = useState(false)
@@ -157,9 +158,10 @@ function AppEnhanced() {
     localStorage.setItem('investments', JSON.stringify(investments))
   }, [investments])
 
-  useEffect(() => {
-    localStorage.setItem('watchlist', JSON.stringify(watchlist))
-  }, [watchlist])
+  // Watchlist persistence now handled internally by WatchlistComponent
+  // useEffect(() => {
+  //   localStorage.setItem('watchlist', JSON.stringify(watchlist))
+  // }, [watchlist])
 
   useEffect(() => {
     localStorage.setItem('auditLog', JSON.stringify(auditLog))
@@ -248,7 +250,7 @@ function AppEnhanced() {
   }
 
   const loadMarketData = async () => {
-    const symbols = [...investments.map(inv => inv.symbol), ...watchlist.map(w => w.symbol)]
+    const symbols = [...investments.map(inv => inv.symbol)]
     const newMarketData = new Map()
     
     for (const symbol of symbols) {
@@ -256,7 +258,7 @@ function AppEnhanced() {
       if (data) newMarketData.set(symbol, data)
     }
     
-    setMarketDataMap(newMarketData)
+    // setMarketDataMap(newMarketData) // Commented out - market data map not used
 
     // Load historical data for portfolio performance
     const histData = await fetchHistoricalData('PORTFOLIO', 90)
@@ -371,18 +373,8 @@ function AppEnhanced() {
     }
   }
 
-  const addToWatchlist = (item: Omit<WatchlistItem, 'id' | 'addedDate'>) => {
-    const newItem: WatchlistItem = {
-      ...item,
-      id: Date.now().toString(),
-      addedDate: new Date().toISOString()
-    }
-    setWatchlist([...watchlist, newItem])
-  }
-
-  const removeFromWatchlist = (id: string) => {
-    setWatchlist(watchlist.filter(item => item.id !== id))
-  }
+  // Watchlist functions (now handled internally by WatchlistComponent)
+  // Removed - watchlist state management moved to WatchlistComponent
 
   const dismissAlert = (id: string) => {
     setAlerts(alerts.filter(alert => alert.id !== id))
@@ -628,12 +620,7 @@ function AppEnhanced() {
 
         {activeView === 'watchlist' && (
           <div className="watchlist-view">
-            <Watchlist 
-              items={watchlist}
-              marketData={marketDataMap}
-              onAdd={addToWatchlist}
-              onRemove={removeFromWatchlist}
-            />
+            <Watchlist />
           </div>
         )}
       </main>

@@ -107,3 +107,170 @@ export interface RebalanceRecommendation {
     reason: string;
   }>;
 }
+
+// Macro & Market Indicators
+export interface MacroIndicator {
+  id: string;
+  name: string;
+  value: number | string;
+  change: number;
+  changePercent: number;
+  unit: string;
+  lastUpdate: string;
+  trend: 'up' | 'down' | 'neutral';
+  significance: 'bullish' | 'bearish' | 'neutral';
+}
+
+export interface YieldCurvePoint {
+  maturity: string;
+  yield: number;
+}
+
+// Trade Journal & Idea Tracking
+export interface TradeIdea {
+  id: string;
+  symbol: string;
+  name: string;
+  status: 'watching' | 'active' | 'closed' | 'stopped';
+  entryDate?: string;
+  exitDate?: string;
+  entryPrice?: number;
+  exitPrice?: number;
+  targetPrice: number;
+  stopLoss: number;
+  conviction: 1 | 2 | 3 | 4 | 5; // 1=low, 5=high
+  timeHorizon: 'day' | 'swing' | 'position' | 'long-term';
+  thesis: string;
+  entryRationale: string;
+  exitRationale?: string;
+  tags: string[];
+  catalysts: string[];
+  risks: string[];
+  notes: string;
+  attachments?: string[];
+  performance?: number;
+  performancePercent?: number;
+}
+
+// Position Sizing & Risk Management
+export interface PositionSizeCalculation {
+  symbol: string;
+  accountValue: number;
+  riskPerTrade: number; // percentage
+  entryPrice: number;
+  stopLoss: number;
+  riskAmount: number; // dollar amount to risk
+  positionSize: number; // shares to buy
+  positionValue: number; // dollar value
+  kellyPercentage?: number; // Kelly criterion optimal size
+  correlationAdjustment?: number;
+}
+
+// Scenario Analysis & Stress Testing
+export interface ScenarioTest {
+  id: string;
+  name: string;
+  description: string;
+  type: 'market-crash' | 'recession' | 'inflation' | 'rate-hike' | 'sector-rotation' | 'custom';
+  assumptions: {
+    equityChange: number; // percentage
+    bondChange: number;
+    commodityChange: number;
+    volatilityMultiplier: number;
+    correlationChange: number;
+  };
+  results?: {
+    portfolioChange: number;
+    portfolioChangePercent: number;
+    worstPosition: { symbol: string; loss: number };
+    bestPosition: { symbol: string; gain: number };
+    hedgeEffectiveness?: number;
+  };
+}
+
+// Advanced Risk Metrics
+export interface AdvancedRiskMetrics extends RiskMetrics {
+  sortinoRatio: number; // Downside risk-adjusted return
+  calmarRatio: number; // Return / Max Drawdown
+  treynorRatio: number; // Return per unit of systematic risk
+  informationRatio: number; // Excess return / Tracking error
+  downsideDeviation: number;
+  upCaptureRatio: number; // How much upside captured vs benchmark
+  downCaptureRatio: number; // How much downside captured vs benchmark
+  tailRisk: number; // Expected shortfall / CVaR
+  alpha: number; // Excess return vs benchmark
+}
+
+// Correlation Analysis
+export interface CorrelationData {
+  matrix: Record<string, Record<string, number>>; // symbol1 -> symbol2 -> correlation
+  diversificationScore: number; // 0-100, higher is more diversified
+  clusters: Array<{
+    name: string;
+    symbols: string[];
+    avgCorrelation: number;
+  }>;
+  recommendations: string[];
+}
+
+// Dividend Tracking
+export interface DividendEvent {
+  id: string;
+  investmentId: string;
+  symbol: string;
+  exDate: string;
+  payDate: string;
+  amount: number;
+  yield: number;
+  type: 'qualified' | 'ordinary' | 'return-of-capital';
+  status: 'upcoming' | 'pending' | 'received';
+  reinvested: boolean;
+}
+
+export interface DividendAnalysis {
+  totalAnnualIncome: number;
+  averageYield: number;
+  payoutFrequency: Record<string, number>; // monthly, quarterly, etc
+  nextPayments: DividendEvent[];
+  yieldOnCost: number; // Current yield based on original cost
+  growthRate: number; // Dividend growth rate
+  projectedAnnualIncome: number; // Next 12 months
+}
+
+// Export & Reporting
+export interface PerformanceReport {
+  period: string;
+  startDate: string;
+  endDate: string;
+  startingValue: number;
+  endingValue: number;
+  totalReturn: number;
+  totalReturnPercent: number;
+  benchmarkReturn?: number;
+  alpha?: number;
+  dividendIncome: number;
+  realizedGains: number;
+  unrealizedGains: number;
+  transactions: Transaction[];
+  topPerformers: Array<{ symbol: string; return: number }>;
+  bottomPerformers: Array<{ symbol: string; return: number }>;
+  sectorPerformance: Record<string, number>;
+}
+
+// Enhanced Investment with more fields
+export interface EnhancedInvestment extends Investment {
+  beta?: number;
+  correlation?: number;
+  expectedReturn?: number;
+  dividendYield?: number;
+  nextDividend?: string;
+  analystRating?: 'strong-buy' | 'buy' | 'hold' | 'sell' | 'strong-sell';
+  targetPrice?: number;
+  fundamentals?: {
+    pe?: number;
+    pb?: number;
+    roe?: number;
+    debtToEquity?: number;
+    currentRatio?: number;
+  };
+}

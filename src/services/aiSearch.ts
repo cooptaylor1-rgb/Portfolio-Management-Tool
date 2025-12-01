@@ -89,9 +89,9 @@ function preparePortfolioContext(context: SearchContext): string {
   
   let contextStr = `Portfolio Summary:
 - Total Value: $${stats.totalValue.toFixed(2)}
-- Total Gain/Loss: $${stats.totalGainLoss.toFixed(2)} (${stats.totalGainLossPercentage.toFixed(2)}%)
+- Total Gain/Loss: $${stats.totalGainLoss.toFixed(2)} (${stats.gainLossPercentage.toFixed(2)}%)
 - Number of Holdings: ${investments.length}
-- Diversity Score: ${stats.diversityScore}/100
+- Diversity Score: ${stats.diversificationScore}/100
 
 Holdings:\n`;
 
@@ -128,7 +128,7 @@ function findRelevantInvestments(answer: string, investments: Investment[]): Inv
 /**
  * Generates contextual follow-up suggestions
  */
-function generateSuggestions(query: string, investments: Investment[]): string[] {
+function generateSuggestions(query: string, _investments: Investment[]): string[] {
   const queryLower = query.toLowerCase();
   const suggestions: string[] = [];
 
@@ -196,9 +196,9 @@ function getFallbackSearch(context: SearchContext): AISearchResult {
       return `${inv.name} (${gain.toFixed(2)}%)`;
     }).join(', ')}.`;
   } else if (queryLower.includes('total') || queryLower.includes('value') || queryLower.includes('worth')) {
-    answer = `Your portfolio is worth $${stats.totalValue.toFixed(2)} with a total ${stats.totalGainLoss >= 0 ? 'gain' : 'loss'} of $${Math.abs(stats.totalGainLoss).toFixed(2)} (${stats.totalGainLossPercentage.toFixed(2)}%).`;
+    answer = `Your portfolio is worth $${stats.totalValue.toFixed(2)} with a total ${stats.totalGainLoss >= 0 ? 'gain' : 'loss'} of $${Math.abs(stats.totalGainLoss).toFixed(2)} (${stats.gainLossPercentage.toFixed(2)}%).`;
   } else if (queryLower.includes('diversif') || queryLower.includes('balance')) {
-    answer = `Your portfolio has a diversity score of ${stats.diversityScore}/100. ${stats.diversityScore < 50 ? 'Consider adding more variety to improve diversification.' : 'Your portfolio is reasonably diversified.'}`;
+    answer = `Your portfolio has a diversity score of ${stats.diversificationScore}/100. ${stats.diversificationScore < 50 ? 'Consider adding more variety to improve diversification.' : 'Your portfolio is reasonably diversified.'}`;
   } else {
     // Search by symbol or name
     relevantInvestments = investments.filter(inv =>
