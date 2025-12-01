@@ -1,8 +1,8 @@
 # 📊 Portfolio Manager Pro
 
-**Bloomberg Terminal-level insights, designed for everyone**
+**High-level insights, designed for everyone**
 
-A phenomenal, professional-grade portfolio management application that rivals Bloomberg Terminal in functionality while remaining accessible to investors of all experience levels. Built with cutting-edge web technologies and designed with user experience at its core.
+A phenomenal, professional-grade portfolio management application that rivals the best portfolio managemetn tools in functionality while remaining accessible to investors of all experience levels. Built with cutting-edge web technologies and designed with user experience at its core.
 
 ![Portfolio Manager](https://img.shields.io/badge/React-18.2-blue?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.2-blue?logo=typescript)
