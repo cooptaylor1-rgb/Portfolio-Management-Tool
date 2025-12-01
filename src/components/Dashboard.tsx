@@ -1,6 +1,8 @@
 import { PortfolioStats, Investment } from '../types'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ChartTooltip, Legend } from 'recharts'
 import { TrendingUp, TrendingDown, DollarSign, PieChart as PieChartIcon, Award, Target, BarChart3 } from 'lucide-react'
+import { AsOfTimestamp, Sparkline } from './UIComponents'
+import { useState, useEffect } from 'react'
 
 interface DashboardProps {
   stats: PortfolioStats
@@ -10,6 +12,25 @@ interface DashboardProps {
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
 
 export default function Dashboard({ stats, investments }: DashboardProps) {
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLastUpdate(new Date());
+    }, 60000); // Update timestamp every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  // Generate mock historical data for sparklines
+  const generateSparklineData = (currentValue: number, days: number = 7) => {
+    const data: number[] = [];
+    for (let i = 0; i < days; i++) {
+      const variance = (Math.random() - 0.5) * 0.1;
+      data.push(currentValue * (1 + variance));
+    }
+    return data;
+  };
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -39,6 +60,11 @@ export default function Dashboard({ stats, investments }: DashboardProps) {
 
   return (
     <div className="dashboard">
+      {/* Timestamp Indicator */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-4)' }}>
+        <AsOfTimestamp timestamp={lastUpdate} label="Data as of" />
+      </div>
+
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon" style={{ background: '#3b82f6' }}>
@@ -50,6 +76,7 @@ export default function Dashboard({ stats, investments }: DashboardProps) {
               <span className="tooltip-trigger" title="The current market value of all your investments combined">ⓘ</span>
             </p>
             <p className="stat-value">{formatCurrency(stats.totalValue)}</p>
+            <Sparkline data={generateSparklineData(stats.totalValue)} width={100} height={30} />
           </div>
         </div>
 

@@ -5,16 +5,23 @@ import {
 } from './types'
 import Dashboard from './components/Dashboard'
 import AddInvestment from './components/AddInvestment'
-import InvestmentList from './components/InvestmentList'
+import EnhancedTable from './components/EnhancedTable'
 import HelpModal from './components/HelpModal'
 import PerformanceChart from './components/PerformanceChart'
 import RiskAnalysis from './components/RiskAnalysis'
 import AlertsPanel from './components/AlertsPanel'
 import NewsFeed from './components/NewsFeed'
 import Watchlist from './components/Watchlist'
+import { CommandPalette } from './components/CommandPalette'
+import { EnvironmentBanner } from './components/EnvironmentBanner'
+import { ConfirmationModal } from './components/ConfirmationModal'
+import { AuditTrail, type AuditEntry } from './components/AuditTrail'
+import { LoadingTableSkeleton, ErrorMessage } from './components/UIComponents'
 import { HelpCircle, BarChart3, Shield, Bell, Newspaper, Eye, Moon, Sun } from 'lucide-react'
 import { fetchHistoricalData, fetchNews, calculateRiskMetrics, fetchMarketData } from './services/marketData'
 import { generateAlerts } from './services/analytics'
+
+type Environment = 'live' | 'paper' | 'simulation';
 
 function AppEnhanced() {
   const getSamplePortfolio = (): Investment[] => [
@@ -98,12 +105,43 @@ function AppEnhanced() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
+  
+  // New institutional features
+  const [environment, setEnvironment] = useState<Environment>('simulation')
+  const [showCommandPalette, setShowCommandPalette] = useState(false)
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [confirmationConfig, setConfirmationConfig] = useState<any>(null)
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>(() => {
+    const saved = localStorage.getItem('auditLog')
+    return saved ? JSON.parse(saved).map((entry: any) => ({
+      ...entry,
+      timestamp: new Date(entry.timestamp)
+    })) : []
+  })
+  
+  // Loading and error states
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   // Load data on mount and periodically
   useEffect(() => {
-    loadMarketData()
-    loadNews()
-    generateAlertsData()
+    const initializeData = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
+        await Promise.all([
+          loadMarketData(),
+          loadNews(),
+        ])
+        generateAlertsData()
+        setIsLoading(false)
+      } catch (err) {
+        setError('Failed to load market data. Using cached data.')
+        setIsLoading(false)
+      }
+    }
+    
+    initializeData()
     
     const interval = setInterval(() => {
       loadMarketData()
@@ -120,6 +158,85 @@ function AppEnhanced() {
   useEffect(() => {
     localStorage.setItem('watchlist', JSON.stringify(watchlist))
   }, [watchlist])
+
+  useEffect(() => {
+    localStorage.setItem('auditLog', JSON.stringify(auditLog))
+  }, [auditLog])
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Command Palette: Ctrl+K or Cmd+K
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setShowCommandPalette(true)
+        return
+      }
+
+      // Search: /
+      if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+        e.preventDefault()
+        setShowCommandPalette(true)
+        return
+      }
+
+      // Navigation shortcuts with 'g' prefix
+      if (e.key === 'g' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+        const handleNextKey = (nextE: KeyboardEvent) => {
+          switch (nextE.key) {
+            case 'd':
+              setActiveView('dashboard')
+              break
+            case 'a':
+              setActiveView('analytics')
+              break
+            case 'r':
+              setActiveView('risk')
+              break
+            case 'w':
+              setActiveView('watchlist')
+              break
+            case 'n':
+              setActiveView('news')
+              break
+          }
+          window.removeEventListener('keydown', handleNextKey)
+        }
+        window.addEventListener('keydown', handleNextKey)
+        setTimeout(() => window.removeEventListener('keydown', handleNextKey), 2000)
+      }
+
+      // Help: ?
+      if (e.key === '?' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+        e.preventDefault()
+        setShowHelp(true)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // Audit log helper
+  const addAuditEntry = (
+    action: 'add' | 'edit' | 'delete' | 'trade' | 'rebalance',
+    entity: string,
+    before?: any,
+    after?: any,
+    comment?: string
+  ) => {
+    const entry: AuditEntry = {
+      id: Date.now().toString(),
+      timestamp: new Date(),
+      user: 'Current User', // In a real app, get from auth context
+      action,
+      entity,
+      before,
+      after,
+      comment
+    }
+    setAuditLog(prev => [entry, ...prev].slice(0, 100)) // Keep last 100 entries
+  }
 
   const loadMarketData = async () => {
     const symbols = [...investments.map(inv => inv.symbol), ...watchlist.map(w => w.symbol)]
@@ -209,18 +326,40 @@ function AppEnhanced() {
     }
     setInvestments([...investments, newInvestment])
     setShowAddForm(false)
+    addAuditEntry('add', `${investment.symbol} - ${investment.name}`, null, newInvestment)
   }
 
   const deleteInvestment = (id: string) => {
-    if (window.confirm('Are you sure you want to remove this investment from your portfolio?')) {
-      setInvestments(investments.filter(inv => inv.id !== id))
-    }
+    const investment = investments.find(inv => inv.id === id)
+    if (!investment) return
+
+    setConfirmationConfig({
+      title: 'Remove Investment',
+      message: `Are you sure you want to remove ${investment.symbol} from your portfolio?`,
+      type: 'danger',
+      confirmText: 'Remove',
+      details: [
+        { label: 'Symbol', value: investment.symbol },
+        { label: 'Quantity', value: investment.quantity },
+        { label: 'Current Value', value: `$${(investment.quantity * investment.currentPrice).toFixed(2)}` }
+      ],
+      onConfirm: () => {
+        setInvestments(investments.filter(inv => inv.id !== id))
+        addAuditEntry('delete', `${investment.symbol} - ${investment.name}`, investment, null)
+      }
+    })
+    setShowConfirmation(true)
   }
 
   const updateInvestment = (id: string, updates: Partial<Investment>) => {
+    const before = investments.find(inv => inv.id === id)
     setInvestments(investments.map(inv => 
       inv.id === id ? { ...inv, ...updates } : inv
     ))
+    const after = { ...before, ...updates }
+    if (before) {
+      addAuditEntry('edit', `${before.symbol} - ${before.name}`, before, after)
+    }
   }
 
   const addToWatchlist = (item: Omit<WatchlistItem, 'id' | 'addedDate'>) => {
@@ -250,16 +389,51 @@ function AppEnhanced() {
 
   return (
     <div className={`app ${darkMode ? 'dark-mode' : ''}`}>
+      {/* Environment Banner - Always visible for safety */}
+      <EnvironmentBanner 
+        environment={environment}
+        onEnvironmentChange={setEnvironment}
+      />
+
+      {/* Command Palette - Ctrl+K */}
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        investments={investments}
+        onNavigate={(tab) => setActiveView(tab as any)}
+        onInvestmentSelect={(_inv) => {
+          setActiveView('dashboard')
+          // Could scroll to investment or highlight it
+        }}
+      />
+
+      {/* Confirmation Modal */}
+      {showConfirmation && confirmationConfig && (
+        <ConfirmationModal
+          isOpen={showConfirmation}
+          onClose={() => setShowConfirmation(false)}
+          onConfirm={confirmationConfig.onConfirm}
+          title={confirmationConfig.title}
+          message={confirmationConfig.message}
+          type={confirmationConfig.type}
+          confirmText={confirmationConfig.confirmText}
+          details={confirmationConfig.details}
+        />
+      )}
+
       <header className="app-header-enhanced">
         <div className="header-content">
           <h1>📊 Portfolio Manager Pro</h1>
-          <p className="tagline">Bloomberg-level insights for everyone</p>
+          <p className="tagline">Institutional-grade insights for everyone</p>
+          <div className="keyboard-hint">
+            Press <kbd className="kbd">Ctrl+K</kbd> or <kbd className="kbd">/</kbd> to search
+          </div>
         </div>
         <div className="header-actions">
           <button 
             className="header-btn"
             onClick={() => setDarkMode(!darkMode)}
-            title={darkMode ? 'Light mode' : 'Dark mode'}
+            title={darkMode ? 'Light mode (Alt+D)' : 'Dark mode (Alt+D)'}
           >
             {darkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
@@ -274,7 +448,7 @@ function AppEnhanced() {
           <button 
             className="header-btn"
             onClick={() => setShowHelp(true)}
-            title="Help"
+            title="Help (?)"
           >
             <HelpCircle size={20} />
           </button>
@@ -285,37 +459,47 @@ function AppEnhanced() {
         <button 
           className={`nav-btn ${activeView === 'dashboard' ? 'active' : ''}`}
           onClick={() => setActiveView('dashboard')}
+          title="Dashboard (g+d)"
         >
           <BarChart3 size={20} />
           <span>Dashboard</span>
+          <kbd className="nav-kbd">g d</kbd>
         </button>
         <button 
           className={`nav-btn ${activeView === 'analytics' ? 'active' : ''}`}
           onClick={() => setActiveView('analytics')}
+          title="Analytics (g+a)"
         >
           <BarChart3 size={20} />
           <span>Analytics</span>
+          <kbd className="nav-kbd">g a</kbd>
         </button>
         <button 
           className={`nav-btn ${activeView === 'risk' ? 'active' : ''}`}
           onClick={() => setActiveView('risk')}
+          title="Risk Analysis (g+r)"
         >
           <Shield size={20} />
           <span>Risk Analysis</span>
+          <kbd className="nav-kbd">g r</kbd>
         </button>
         <button 
           className={`nav-btn ${activeView === 'watchlist' ? 'active' : ''}`}
           onClick={() => setActiveView('watchlist')}
+          title="Watchlist (g+w)"
         >
           <Eye size={20} />
           <span>Watchlist</span>
+          <kbd className="nav-kbd">g w</kbd>
         </button>
         <button 
           className={`nav-btn ${activeView === 'news' ? 'active' : ''}`}
           onClick={() => setActiveView('news')}
+          title="News (g+n)"
         >
           <Newspaper size={20} />
           <span>News</span>
+          <kbd className="nav-kbd">g n</kbd>
         </button>
       </nav>
 
@@ -342,22 +526,40 @@ function AppEnhanced() {
                 />
               )}
 
-              {investments.length === 0 && !showAddForm && (
+              {isLoading && investments.length === 0 ? (
+                <LoadingTableSkeleton rows={5} columns={8} />
+              ) : investments.length === 0 && !showAddForm ? (
                 <div className="empty-state">
                   <div className="empty-state-icon">📈</div>
                   <h3>Start Building Your Portfolio</h3>
                   <p>You haven't added any investments yet. Click "Add Investment" above to get started!</p>
                 </div>
-              )}
-
-              {investments.length > 0 && (
-                <InvestmentList 
+              ) : investments.length > 0 ? (
+                <EnhancedTable 
                   investments={investments}
                   onDelete={deleteInvestment}
                   onUpdate={updateInvestment}
                 />
+              ) : null}
+              
+              {error && (
+                <ErrorMessage
+                  message={error}
+                  onRetry={() => {
+                    setError(null)
+                    loadMarketData()
+                    loadNews()
+                  }}
+                />
               )}
             </section>
+
+            {/* Audit Trail - Dashboard only */}
+            {auditLog.length > 0 && (
+              <section className="audit-section">
+                <AuditTrail entries={auditLog} maxHeight="300px" />
+              </section>
+            )}
           </>
         )}
 

@@ -1,5 +1,6 @@
 // Market data service - FactSet API integration
 // FactSet provides institutional-grade financial data
+import { PerformanceData } from '../types';
 
 const CACHE_DURATION = 60000; // 1 minute cache
 const cache = new Map<string, { data: any; timestamp: number }>();
@@ -7,8 +8,8 @@ const cache = new Map<string, { data: any; timestamp: number }>();
 // FactSet API Configuration
 // Get your API credentials from: https://developer.factset.com/
 const FACTSET_API_BASE = 'https://api.factset.com/content';
-const FACTSET_USERNAME = process.env.FACTSET_USERNAME || 'YOUR_FACTSET_USERNAME';
-const FACTSET_API_KEY = process.env.FACTSET_API_KEY || 'YOUR_FACTSET_API_KEY';
+const FACTSET_USERNAME = 'YOUR_FACTSET_USERNAME'; // Configure in .env
+const FACTSET_API_KEY = 'YOUR_FACTSET_API_KEY'; // Configure in .env
 
 // Helper function to create Basic Auth header for FactSet
 function getFactSetHeaders() {
@@ -221,6 +222,39 @@ export async function fetchHistoricalData(symbol: string, days: number = 30) {
               date: item.date,
               value: item.price || 0,
               change: index > 0 ? (item.price || 0) - (result.data[index - 1].price || 0) : 0,
+            }));
+            
+            cache.set(cacheKey, { data, timestamp: Date.now() });
+            return data;
+          }
+        }
+      } catch (error) {
+        console.error(`FactSet API error for historical data:`, error);
+      }
+    }
+
+    // Fallback: Generate mock historical data
+    const mockData: PerformanceData[] = [];
+    const today = new Date();
+    
+    for (let i = days; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      mockData.push({
+        date: date.toISOString().split('T')[0],
+        value: 10000 * (1 + Math.sin(i / 10) * 0.2 + (Math.random() - 0.5) * 0.05),
+        change: (Math.random() - 0.5) * 200
+      });
+    }
+    
+    cache.set(cacheKey, { data: mockData, timestamp: Date.now() });
+    return mockData;
+  } catch (outerError) {
+    console.error('Error in fetchHistoricalData:', outerError);
+    return [];
+  }
+}
+
 export async function fetchNews(symbols: string[] = []) {
   const cacheKey = `news_${symbols.join(',')}`;
   const cached = cache.get(cacheKey);
@@ -319,46 +353,6 @@ export async function fetchNews(symbols: string[] = []) {
 
     cache.set(cacheKey, { data: filteredNews, timestamp: Date.now() });
     return filteredNews;
-  } catch (error) {
-    console.error('Error fetching news:', error);
-    return [];
-  }
-}       url: '#',
-        publishedAt: new Date(Date.now() - 3600000).toISOString(),
-        sentiment: 'positive' as const,
-        symbols: ['AAPL', 'MSFT', 'GOOGL'],
-      },
-      {
-        id: '2',
-        title: 'Federal Reserve Holds Interest Rates Steady',
-        source: 'Bloomberg',
-        url: '#',
-        publishedAt: new Date(Date.now() - 7200000).toISOString(),
-        sentiment: 'neutral' as const,
-        symbols: [],
-      },
-      {
-        id: '3',
-        title: 'Market Volatility Expected Amid Economic Uncertainty',
-        source: 'Reuters',
-        url: '#',
-        publishedAt: new Date(Date.now() - 10800000).toISOString(),
-        sentiment: 'negative' as const,
-        symbols: [],
-      },
-      {
-        id: '4',
-        title: 'Cryptocurrency Markets Show Strong Recovery',
-        source: 'CoinDesk',
-        url: '#',
-        publishedAt: new Date(Date.now() - 14400000).toISOString(),
-        sentiment: 'positive' as const,
-        symbols: ['BTC', 'ETH'],
-      },
-    ];
-
-    cache.set(cacheKey, { data: newsItems, timestamp: Date.now() });
-    return newsItems;
   } catch (error) {
     console.error('Error fetching news:', error);
     return [];

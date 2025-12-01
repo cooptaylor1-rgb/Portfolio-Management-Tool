@@ -2,6 +2,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { PerformanceData } from '../types'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { useState } from 'react'
+import { AsOfTimestamp } from './UIComponents'
 
 interface PerformanceChartProps {
   data: PerformanceData[]
@@ -61,6 +62,7 @@ export default function PerformanceChart({ data, title = 'Portfolio Performance'
               {totalChange >= 0 ? '+' : ''}{formatCurrency(totalChange)} ({totalChangePercent >= 0 ? '+' : ''}{totalChangePercent.toFixed(2)}%)
             </span>
           </div>
+          <AsOfTimestamp timestamp={filteredData[filteredData.length - 1]?.date || new Date()} />
         </div>
         <div className="time-range-selector">
           {(['1M', '3M', '6M', '1Y', 'ALL'] as const).map(range => (
