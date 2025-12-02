@@ -274,3 +274,94 @@ export interface EnhancedInvestment extends Investment {
     currentRatio?: number;
   };
 }
+
+// Authentication & User Management
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  avatar?: string;
+  createdAt: string;
+  lastLogin?: string;
+  preferences?: UserPreferences;
+}
+
+export interface UserPreferences {
+  theme: 'light' | 'dark' | 'system';
+  currency: string;
+  notifications: boolean;
+  defaultView: string;
+}
+
+export interface AuthState {
+  isAuthenticated: boolean;
+  user: User | null;
+  token: string | null;
+  loading: boolean;
+  error: string | null;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterCredentials extends LoginCredentials {
+  name: string;
+  confirmPassword: string;
+}
+
+// Collaboration & Sharing
+export interface Portfolio {
+  id: string;
+  name: string;
+  description?: string;
+  ownerId: string;
+  investments: Investment[];
+  createdAt: string;
+  updatedAt: string;
+  isPublic: boolean;
+  sharedWith: SharedUser[];
+  tags?: string[];
+}
+
+export interface SharedUser {
+  userId: string;
+  email: string;
+  name: string;
+  permission: 'view' | 'edit' | 'admin';
+  addedAt: string;
+}
+
+export interface PortfolioActivity {
+  id: string;
+  portfolioId: string;
+  userId: string;
+  userName: string;
+  action: 'created' | 'updated' | 'deleted' | 'shared' | 'investment_added' | 'investment_removed' | 'investment_updated';
+  description: string;
+  timestamp: string;
+  changes?: any;
+}
+
+export interface CollaborationInvite {
+  id: string;
+  portfolioId: string;
+  portfolioName: string;
+  fromUserId: string;
+  fromUserName: string;
+  toEmail: string;
+  permission: 'view' | 'edit' | 'admin';
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface UserActivity {
+  id: string;
+  userId: string;
+  action: string;
+  details: string;
+  timestamp: string;
+  ipAddress?: string;
+}

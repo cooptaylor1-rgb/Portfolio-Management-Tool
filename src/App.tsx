@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Investment, PortfolioStats } from './types'
+import { useAuth } from './contexts/AuthContext'
+import { useToast } from './hooks/useToast'
+import { ToastContainer } from './components/ui/Toast'
+import Login from './components/Login'
 import Dashboard from './components/Dashboard'
 import AddInvestment from './components/AddInvestment'
 import InvestmentList from './components/InvestmentList'
@@ -14,13 +18,58 @@ import { EquityResearch } from './components/EquityResearch'
 import { ThemeResearch } from './components/ThemeResearch'
 import { WatchlistComponent } from './components/Watchlist'
 import { ResearchNotes } from './components/ResearchNotes'
-import { HelpCircle, TrendingUp, BookOpen, Calculator, GitBranch, Globe, AlertTriangle, Coins, Search, Eye, FileText } from 'lucide-react'
+import { CollaborationPanel } from './components/CollaborationPanel'
+import { HelpCircle, TrendingUp, BookOpen, Calculator, GitBranch, Globe, AlertTriangle, Coins, Search, Eye, FileText, LogOut, User, Users } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 
-type TabView = 'portfolio' | 'macro' | 'research' | 'journal' | 'sizing' | 'correlation' | 'scenarios' | 'dividends' | 'watchlist' | 'notes'
+type TabView = 'portfolio' | 'macro' | 'research' | 'journal' | 'sizing' | 'correlation' | 'scenarios' | 'dividends' | 'watchlist' | 'notes' | 'collaboration'
 type ResearchSubTab = 'equity' | 'themes'
 
 function App() {
+  const authContext = useAuth();
+  const { isAuthenticated, user, login, register, logout, loading } = authContext || {};
+  const { toasts, success, error: showError } = useToast();
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  
+  // TEMPORARY: Skip login for debugging
+  const skipLogin = true; // Force skip for now
+  
+  // Create mock user for skip auth mode
+  const activeUser = skipLogin ? { id: 'demo', name: 'Demo User', email: 'demo@example.com', createdAt: new Date().toISOString() } : user;
+
+  // Skip loading and auth checks
+  // if (loading && !skipLogin) {
+  //   return (
+  //     <div className="flex items-center justify-center min-h-screen bg-gray-900">
+  //       <div className="text-center">
+  //         <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+  //         <p className="text-gray-400">Loading...</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
+
+  // Show login page if not authenticated (unless skipauth is in URL)
+  // if (!isAuthenticated && !skipLogin) {
+  //   return (
+  //     <Login
+  //       onLogin={async (email, password) => {
+  //         await login({ email, password });
+  //       }}
+  //       onRegister={async (name, email, password, confirmPassword) => {
+  //         await register({ name, email, password, confirmPassword });
+  //       }}
+  //     />
+  //   );
+  // }
+
+  const handleLogout = async () => {
+    if (logout && window.confirm('Are you sure you want to log out?')) {
+      await logout();
+      setShowUserMenu(false);
+    }
+  };
+
   const getSamplePortfolio = (): Investment[] => [
     {
       id: '1',
@@ -75,17 +124,19 @@ function App() {
   ]
 
   const [investments, setInvestments] = useState<Investment[]>(() => {
-    const saved = localStorage.getItem('investments')
+    // Use user-specific storage key
+    const storageKey = `investments_${activeUser?.id || 'default'}`;
+    const saved = localStorage.getItem(storageKey);
     if (saved) {
-      const parsed = JSON.parse(saved)
+      const parsed = JSON.parse(saved);
       // If empty array is saved, load sample portfolio
       if (parsed.length === 0) {
-        return getSamplePortfolio()
+        return getSamplePortfolio();
       }
-      return parsed
+      return parsed;
     }
     // No saved data, load sample portfolio
-    return getSamplePortfolio()
+    return getSamplePortfolio();
   })
   
   const [showAddForm, setShowAddForm] = useState(false)
@@ -93,9 +144,45 @@ function App() {
   const [activeTab, setActiveTab] = useState<TabView>('portfolio')
   const [researchSubTab, setResearchSubTab] = useState<ResearchSubTab>('equity')
 
+  // Keyboard shortcuts
   useEffect(() => {
-    localStorage.setItem('investments', JSON.stringify(investments))
-  }, [investments])
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + K - Show help (command palette equivalent)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setShowHelp(true)
+      }
+      // Escape - Close modals
+      if (e.key === 'Escape') {
+        setShowHelp(false)
+        setShowAddForm(false)
+        setShowUserMenu(false)
+      }
+      // Ctrl/Cmd + N - Add new investment
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault()
+        setShowAddForm(true)
+      }
+      // Number keys 1-9 for quick tab navigation
+      if (e.key >= '1' && e.key <= '9' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault()
+        const tabs: TabView[] = ['portfolio', 'macro', 'research', 'journal', 'sizing', 'correlation', 'scenarios', 'dividends', 'watchlist']
+        const index = parseInt(e.key) - 1
+        if (index < tabs.length) {
+          setActiveTab(tabs[index])
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyPress)
+    return () => window.removeEventListener('keydown', handleKeyPress)
+  }, [])
+
+  useEffect(() => {
+    // Save to user-specific storage
+    const storageKey = `investments_${activeUser?.id || 'default'}`;
+    localStorage.setItem(storageKey, JSON.stringify(investments));
+  }, [investments, activeUser])
 
   const calculateStats = (): PortfolioStats => {
     const totalValue = investments.reduce((sum, inv) => sum + (inv.quantity * inv.currentPrice), 0)
@@ -149,11 +236,16 @@ function App() {
     }
     setInvestments([...investments, newInvestment])
     setShowAddForm(false)
+    success(`${investment.symbol} added to portfolio!`)
   }
 
   const deleteInvestment = (id: string) => {
+    const investment = investments.find(inv => inv.id === id)
     if (window.confirm('Are you sure you want to remove this investment from your portfolio?')) {
       setInvestments(investments.filter(inv => inv.id !== id))
+      if (investment) {
+        success(`${investment.symbol} removed from portfolio`)
+      }
     }
   }
 
@@ -161,44 +253,81 @@ function App() {
     setInvestments(investments.map(inv => 
       inv.id === id ? { ...inv, ...updates } : inv
     ))
+    success('Investment updated successfully')
   }
 
   return (
-    <div className="app dark-mode">
-      <header className="app-header-enhanced">
-        <div className="header-content">
-          <h1>Demo Portfolio</h1>
-          <p className="tagline">Professional Portfolio Management</p>
-        </div>
+    <div className="app-container">
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+      <header className="app-header" role="banner">
+        <h1>
+          <TrendingUp size={24} aria-hidden="true" />
+          {activeUser?.name}'s Portfolio
+        </h1>
         <div className="header-actions">
           <button 
-            className="header-btn"
+            className="btn-icon btn-ghost"
             onClick={() => setShowHelp(true)}
-            title="Get help"
+            title="Get help (Ctrl+K)"
+            aria-label="Get help - Press Control K"
           >
-            <HelpCircle size={20} />
+            <HelpCircle size={20} aria-hidden="true" />
+            <span className="sr-only">Keyboard shortcut: Ctrl+K</span>
           </button>
+          {!skipLogin && (
+            <div className="dropdown">
+              <button 
+                className="btn-ghost"
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                title="User menu"
+                aria-label="User menu"
+                aria-expanded={showUserMenu}
+              >
+                <User size={20} />
+                <span className="text-sm">{activeUser?.name}</span>
+              </button>
+              {showUserMenu && (
+                <div className="dropdown-menu">
+                  <div style={{ padding: 'var(--spacing-md)', borderBottom: '1px solid var(--border-primary)' }}>
+                    <div className="font-semibold text-primary">{activeUser?.name}</div>
+                    <div className="text-sm text-secondary">{activeUser?.email}</div>
+                  </div>
+                  <button
+                    className="dropdown-item text-danger"
+                    onClick={handleLogout}
+                  >
+                    <LogOut size={16} />
+                    Log Out
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
       {/* Professional Navigation */}
-      <nav className="main-nav">
+      <nav className="tabs" style={{ paddingLeft: 'var(--spacing-xl)', paddingRight: 'var(--spacing-xl)' }} role="navigation" aria-label="Main navigation">
         <button 
-          className={`nav-btn ${activeTab === 'portfolio' ? 'active' : ''}`}
+          className={`tab ${activeTab === 'portfolio' ? 'active' : ''}`}
           onClick={() => setActiveTab('portfolio')}
+          aria-label="Portfolio view - Press Control 1"
+          aria-current={activeTab === 'portfolio' ? 'page' : undefined}
         >
-          <TrendingUp size={18} />
+          <TrendingUp size={18} aria-hidden="true" />
           Portfolio
         </button>
         <button 
-          className={`nav-btn ${activeTab === 'macro' ? 'active' : ''}`}
+          className={`tab ${activeTab === 'macro' ? 'active' : ''}`}
           onClick={() => setActiveTab('macro')}
         >
           <Globe size={18} />
           Macro
         </button>
         <button 
-          className={`nav-btn ${activeTab === 'research' ? 'active' : ''}`}
+          className={`tab ${activeTab === 'research' ? 'active' : ''}`}
           onClick={() => setActiveTab('research')}
         >
           <Search size={18} />
@@ -209,64 +338,73 @@ function App() {
           onClick={() => setActiveTab('journal')}
         >
           <BookOpen size={18} />
-          Trade Journal
+          Journal
         </button>
         <button 
-          className={`nav-btn ${activeTab === 'sizing' ? 'active' : ''}`}
+          className={`tab ${activeTab === 'sizing' ? 'active' : ''}`}
           onClick={() => setActiveTab('sizing')}
         >
           <Calculator size={18} />
           Position Sizing
         </button>
         <button 
-          className={`nav-btn ${activeTab === 'correlation' ? 'active' : ''}`}
+          className={`tab ${activeTab === 'correlation' ? 'active' : ''}`}
           onClick={() => setActiveTab('correlation')}
         >
           <GitBranch size={18} />
           Correlation
         </button>
         <button 
-          className={`nav-btn ${activeTab === 'scenarios' ? 'active' : ''}`}
+          className={`tab ${activeTab === 'scenarios' ? 'active' : ''}`}
           onClick={() => setActiveTab('scenarios')}
         >
           <AlertTriangle size={18} />
           Scenarios
         </button>
         <button 
-          className={`nav-btn ${activeTab === 'dividends' ? 'active' : ''}`}
+          className={`tab ${activeTab === 'dividends' ? 'active' : ''}`}
           onClick={() => setActiveTab('dividends')}
         >
           <Coins size={18} />
           Dividends
         </button>
         <button 
-          className={`nav-btn ${activeTab === 'watchlist' ? 'active' : ''}`}
+          className={`tab ${activeTab === 'watchlist' ? 'active' : ''}`}
           onClick={() => setActiveTab('watchlist')}
         >
           <Eye size={18} />
           Watchlist
         </button>
         <button 
-          className={`nav-btn ${activeTab === 'notes' ? 'active' : ''}`}
+          className={`tab ${activeTab === 'notes' ? 'active' : ''}`}
           onClick={() => setActiveTab('notes')}
         >
           <FileText size={18} />
           Notes
         </button>
+        <button 
+          className={`tab ${activeTab === 'collaboration' ? 'active' : ''}`}
+          onClick={() => setActiveTab('collaboration')}
+        >
+          <Users size={18} />
+          Collaborate
+        </button>
       </nav>
 
-      <main className="main-content">
+      <main className="app-main" id="main-content" role="main">
         {activeTab === 'portfolio' && (
-          <div className="main-layout">
-            <div className="main-col">
+          <div className="grid grid-cols-3" style={{ gap: 'var(--spacing-xl)' }}>
+            <div style={{ gridColumn: 'span 2' }}>
               <Dashboard stats={calculateStats()} investments={investments} />
 
-              <section className="investments-section">
-                <div className="section-header">
-                  <h2>Your Investments</h2>
+              <section className="card" style={{ marginTop: 'var(--spacing-xl)' }}>
+                <div className="card-header">
+                  <h2 className="card-title">Your Investments</h2>
                   <button 
-                    className="btn btn-primary"
+                    className={showAddForm ? 'btn-secondary' : 'btn-primary'}
                     onClick={() => setShowAddForm(!showAddForm)}
+                    title={showAddForm ? 'Cancel' : 'Add Investment (Ctrl+N)'}
+                    aria-label={showAddForm ? 'Cancel adding investment' : 'Add new investment - Press Control N'}
                   >
                     {showAddForm ? '✕ Cancel' : '+ Add Investment'}
                   </button>
@@ -280,12 +418,21 @@ function App() {
                 )}
 
                 {investments.length === 0 && !showAddForm && (
-                  <div className="empty-state">
-                    <div className="empty-state-icon">📈</div>
-                    <h3>Start Building Your Portfolio</h3>
-                    <p>You haven't added any investments yet. Click "Add Investment" above to get started!</p>
-                    <div className="help-tip">
-                      <strong>New to investing?</strong> Don't worry! Click the "Help" button in the header to learn about the basics.
+                  <div style={{ 
+                    textAlign: 'center', 
+                    padding: 'var(--spacing-2xl)', 
+                    background: 'var(--bg-elevated)', 
+                    borderRadius: 'var(--radius-lg)',
+                    border: '2px dashed var(--border-secondary)'
+                  }}>
+                    <div style={{ fontSize: '64px', marginBottom: 'var(--spacing-md)' }}>📈</div>
+                    <h3 className="text-xl font-semibold text-primary mb-sm">Start Building Your Portfolio</h3>
+                    <p className="text-secondary mb-lg">You haven't added any investments yet. Click "Add Investment" above to get started!</p>
+                    <div className="alert alert-info" style={{ maxWidth: '500px', margin: '0 auto', textAlign: 'left' }}>
+                      <span style={{ fontSize: '20px' }}>💡</span>
+                      <div>
+                        <strong>New to investing?</strong> Click the Help button (Ctrl+K) in the header to learn about the basics.
+                      </div>
                     </div>
                   </div>
                 )}
@@ -300,11 +447,11 @@ function App() {
               </section>
             </div>
 
-            <aside className="sidebar-col">
+            <aside style={{ gridColumn: 'span 1' }}>
               {/* Allocation donut chart */}
-              <section className="allocation-section sidebar-card">
-                <h3>Allocation</h3>
-                <p className="section-description">{calculateStats().totalValue > 0 ? `Total: $${(calculateStats().totalValue / 1000).toFixed(1)}K` : 'No holdings'}</p>
+              <section className="card">
+                <h3 className="card-title">Allocation</h3>
+                <p className="text-secondary text-sm">{calculateStats().totalValue > 0 ? `Total: $${(calculateStats().totalValue / 1000).toFixed(1)}K` : 'No holdings'}</p>
                 {investments.length > 0 && (
                   <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center' }}>
                     <ResponsiveContainer width={200} height={200}>
@@ -339,9 +486,9 @@ function App() {
               </section>
 
               {/* Top gainers */}
-              <section className="alerts-panel sidebar-card">
-                <h3>Gainers</h3>
-                <p className="section-description">Most profitable positions</p>
+              <section className="card" style={{ marginTop: 'var(--spacing-lg)' }}>
+                <h3 className="card-title">Gainers</h3>
+                <p className="text-secondary text-sm">Most profitable positions</p>
                 <div style={{ marginTop: '1rem' }}>
                   {investments.length === 0 ? (
                     <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '1rem' }}>No investments</div>
@@ -398,9 +545,11 @@ function App() {
         {activeTab === 'dividends' && <DividendTracker investments={investments} />}
         {activeTab === 'watchlist' && <WatchlistComponent />}
         {activeTab === 'notes' && <ResearchNotes />}
+        {activeTab === 'collaboration' && <CollaborationPanel />}
       </main>
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+      <ToastContainer toasts={toasts} />
     </div>
   )
 }

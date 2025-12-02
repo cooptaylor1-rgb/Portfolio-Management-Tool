@@ -2,6 +2,9 @@ import React, { useState } from 'react'
 import { Investment } from '../types'
 import { DollarSign, Calendar, TrendingUp, Percent } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { ChartContainer } from './ChartComponents'
+import { CustomTooltip } from './CustomTooltip'
+import { chartColors, chartConfig, formatters } from '../config/chartTheme'
 
 interface DividendTrackerProps {
   investments: Investment[]
@@ -238,63 +241,104 @@ export const DividendTracker: React.FC<DividendTrackerProps> = ({ investments })
 
       {/* DRIP Projection */}
       <div className="dividend-projection-panel">
-        <div className="projection-header">
-          <h3>Income Projection</h3>
-          <div className="projection-controls">
-            <label className="drip-toggle">
-              <input 
-                type="checkbox" 
-                checked={dripEnabled} 
-                onChange={(e) => setDripEnabled(e.target.checked)}
-              />
-              <span>Enable DRIP (Dividend Reinvestment)</span>
-            </label>
-            <select 
-              value={projectionYears} 
-              onChange={(e) => setProjectionYears(Number(e.target.value))}
-              className="year-select"
-            >
-              <option value={5}>5 years</option>
-              <option value={10}>10 years</option>
-              <option value={15}>15 years</option>
-              <option value={20}>20 years</option>
-            </select>
-          </div>
-        </div>
-        
-        {projectionData.length > 0 && (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={projectionData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2a2f3e" />
-              <XAxis 
-                dataKey="year" 
-                stroke="#6b7280"
-                tick={{ fill: '#9ca3af' }}
-              />
-              <YAxis 
-                stroke="#6b7280"
-                tick={{ fill: '#9ca3af' }}
-                tickFormatter={(value) => `$${value.toFixed(0)}`}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  background: '#1a1f2e', 
-                  border: '1px solid #2a2f3e',
-                  borderRadius: '8px',
-                  color: '#e5e7eb'
+        <ChartContainer
+          title="Income Projection"
+          subtitle={`${dripEnabled ? 'With' : 'Without'} dividend reinvestment (DRIP) over ${projectionYears} years`}
+          height={350}
+          actions={
+            <div className="projection-controls" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <label className="drip-toggle" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={dripEnabled} 
+                  onChange={(e) => setDripEnabled(e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '0.875rem', color: chartColors.textSecondary }}>Enable DRIP</span>
+              </label>
+              <select 
+                value={projectionYears} 
+                onChange={(e) => setProjectionYears(Number(e.target.value))}
+                className="year-select"
+                style={{ 
+                  padding: '0.375rem 0.75rem', 
+                  borderRadius: '6px',
+                  background: chartColors.elevated,
+                  border: `1px solid ${chartColors.border}`,
+                  color: chartColors.text,
+                  fontSize: '0.875rem',
+                  cursor: 'pointer'
                 }}
-                formatter={(value: number) => [`$${value.toFixed(2)}`, 'Income']}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="income" 
-                stroke="#00ff88" 
-                strokeWidth={2}
-                dot={{ fill: '#00ff88', r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
+              >
+                <option value={5}>5 years</option>
+                <option value={10}>10 years</option>
+                <option value={15}>15 years</option>
+                <option value={20}>20 years</option>
+              </select>
+            </div>
+          }
+        >
+          {projectionData.length > 0 && (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={projectionData} margin={chartConfig.marginLarge}>
+                <defs>
+                  <linearGradient id="dividendGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={chartColors.success} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={chartColors.success} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid 
+                  strokeDasharray="3 3" 
+                  stroke={chartColors.grid} 
+                  opacity={0.5}
+                  vertical={false}
+                />
+                <XAxis 
+                  dataKey="year" 
+                  stroke={chartColors.border}
+                  tick={{ fill: chartColors.textTertiary, fontSize: 12 }}
+                  axisLine={{ stroke: chartColors.border }}
+                  tickLine={false}
+                />
+                <YAxis 
+                  stroke={chartColors.border}
+                  tick={{ fill: chartColors.textTertiary, fontSize: 12 }}
+                  axisLine={{ stroke: chartColors.border }}
+                  tickLine={false}
+                  tickFormatter={(value) => formatters.currency(value)}
+                />
+                <Tooltip 
+                  content={(props) => (
+                    <CustomTooltip 
+                      {...props} 
+                      formatter={(value) => formatters.currency(value as number)}
+                    />
+                  )}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="income" 
+                  stroke={chartColors.success} 
+                  strokeWidth={3}
+                  dot={{ 
+                    fill: chartColors.success, 
+                    r: 4,
+                    strokeWidth: 2,
+                    stroke: chartColors.background
+                  }}
+                  activeDot={{ 
+                    r: 6,
+                    fill: chartColors.success,
+                    stroke: chartColors.background,
+                    strokeWidth: 2
+                  }}
+                  animationDuration={chartConfig.animation.duration}
+                  fill="url(#dividendGradient)"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </ChartContainer>
 
         <div className="projection-insights">
           <p>

@@ -1,6 +1,9 @@
 import React, { useState } from 'react'
 import { Search, TrendingUp, DollarSign, Shield, BarChart3, Activity, AlertCircle } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts'
+import { ChartContainer } from './ChartComponents'
+import { CustomTooltip } from './CustomTooltip'
+import { chartColors, chartConfig } from '../config/chartTheme'
 
 interface EquityData {
   ticker: string
@@ -454,23 +457,33 @@ export const EquityResearch: React.FC = () => {
         </div>
 
         {/* Quality Radar */}
-        <div className="research-section">
-          <h3>
-            <Shield size={18} />
-            Quality Profile
-          </h3>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
-            <ResponsiveContainer width="100%" height={250}>
+        <ChartContainer 
+          title="Quality Profile"
+          subtitle="Business quality metrics across key dimensions"
+          height={350}
+        >
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <ResponsiveContainer width="100%" height={280}>
               <RadarChart data={qualityRadarData}>
-                <PolarGrid stroke="#3d4654" />
-                <PolarAngleAxis dataKey="metric" tick={{ fill: '#a8b2bf', fontSize: 12 }} />
-                <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: '#7a8490' }} />
+                <PolarGrid stroke={chartColors.grid} strokeWidth={1} opacity={0.5} />
+                <PolarAngleAxis 
+                  dataKey="metric" 
+                  tick={{ fill: chartColors.text, fontSize: 12 }} 
+                />
+                <PolarRadiusAxis 
+                  angle={90} 
+                  domain={[0, 100]} 
+                  tick={{ fill: chartColors.text, fontSize: 11 }} 
+                  stroke={chartColors.axis}
+                />
                 <Radar
                   name="Quality"
                   dataKey="value"
-                  stroke="#00ff88"
-                  fill="#00ff88"
-                  fillOpacity={0.3}
+                  stroke={chartColors.success}
+                  strokeWidth={2}
+                  fill={chartColors.success}
+                  fillOpacity={0.25}
+                  animationDuration={800}
                 />
               </RadarChart>
             </ResponsiveContainer>
@@ -492,7 +505,7 @@ export const EquityResearch: React.FC = () => {
               </div>
             ))}
           </div>
-        </div>
+        </ChartContainer>
 
         {/* Risk Profile */}
         <div className="research-section">
@@ -531,34 +544,45 @@ export const EquityResearch: React.FC = () => {
         </div>
 
         {/* Score Breakdown */}
-        <div className="research-section">
-          <h3>
-            <TrendingUp size={18} />
-            Composite Score Breakdown
-          </h3>
+        <ChartContainer 
+          title="Composite Score Breakdown"
+          subtitle="Combines valuation, quality, growth, and risk factors"
+          height={280}
+        >
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={scoreBreakdownData} layout="horizontal">
-              <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
-              <XAxis type="number" domain={[0, 100]} stroke="#7a8490" />
-              <YAxis type="category" dataKey="name" stroke="#7a8490" width={80} />
-              <Tooltip
-                contentStyle={{
-                  background: '#1a1f2e',
-                  border: '1px solid #3d4654',
-                  borderRadius: '8px'
-                }}
+            <BarChart data={scoreBreakdownData} layout="horizontal" margin={chartConfig.margin}>
+              <CartesianGrid {...chartConfig.grid} />
+              <XAxis 
+                type="number" 
+                domain={[0, 100]} 
+                {...chartConfig.axis}
+                tick={{ fill: chartColors.text }}
               />
-              <Bar dataKey="score" fill="#00d9ff" radius={[0, 4, 4, 0]} />
+              <YAxis 
+                type="category" 
+                dataKey="name" 
+                {...chartConfig.axis}
+                tick={{ fill: chartColors.text }}
+                width={90}
+              />
+              <CustomTooltip />
+              <Bar 
+                dataKey="score" 
+                fill={chartColors.info} 
+                radius={chartConfig.bar.radius}
+                maxBarSize={chartConfig.bar.maxBarSize}
+                animationDuration={800}
+              />
             </BarChart>
           </ResponsiveContainer>
-          <div className="score-explanation">
+          <div className="score-explanation" style={{ marginTop: 'var(--spacing-md)' }}>
             <p>
               <strong>Composite methodology:</strong> Combines valuation (30%), quality (30%), growth
               (20%), and risk (20%) factors using normalized metrics and historical percentiles.
               Conservative scoring favors balance sheet strength and earnings consistency.
             </p>
           </div>
-        </div>
+        </ChartContainer>
       </div>
     </div>
   )

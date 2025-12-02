@@ -7,10 +7,10 @@ interface HelpModalProps {
 export default function HelpModal({ onClose }: HelpModalProps) {
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px' }}>
         <div className="modal-header">
-          <h2>Portfolio Management Guide</h2>
-          <button className="modal-close" onClick={onClose}>
+          <h2 className="modal-title">Portfolio Management Guide</h2>
+          <button className="modal-close" onClick={onClose} aria-label="Close help modal">
             <X size={24} />
           </button>
         </div>
@@ -128,6 +128,31 @@ export default function HelpModal({ onClose }: HelpModalProps) {
               <li>Update current prices by clicking the pencil icon next to any investment</li>
               <li>Watch your portfolio grow over time!</li>
             </ol>
+          </section>
+
+          <section className="help-section">
+            <div className="help-icon">
+              <BookOpen size={32} />
+            </div>
+            <h3>Keyboard Shortcuts</h3>
+            <div style={{ display: 'grid', gap: 'var(--spacing-sm)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Show Help</span>
+                <code className="kbd">Ctrl + K</code>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Add Investment</span>
+                <code className="kbd">Ctrl + N</code>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Close Modals</span>
+                <code className="kbd">Esc</code>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Switch Tabs</span>
+                <code className="kbd">Ctrl + 1-9</code>
+              </div>
+            </div>
           </section>
 
           <section className="help-section disclaimer">

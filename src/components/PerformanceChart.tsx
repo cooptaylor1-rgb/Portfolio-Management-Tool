@@ -1,32 +1,27 @@
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend } from 'recharts'
 import { PerformanceData } from '../types'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { useState } from 'react'
-import { AsOfTimestamp } from './UIComponents'
+import { ChartContainer, TimeRangeSelector, ChartStatCard } from './ChartComponents'
+import { CustomTooltip } from './CustomTooltip'
+import { chartColors, chartConfig, formatters } from '../config/chartTheme'
 
 interface PerformanceChartProps {
   data: PerformanceData[]
   title?: string
   showComparison?: boolean
   benchmarkData?: PerformanceData[]
+  loading?: boolean
 }
 
-export default function PerformanceChart({ data, title = 'Portfolio Performance', showComparison, benchmarkData }: PerformanceChartProps) {
+export default function PerformanceChart({ 
+  data, 
+  title = 'Portfolio Performance', 
+  showComparison, 
+  benchmarkData,
+  loading = false 
+}: PerformanceChartProps) {
   const [timeRange, setTimeRange] = useState<'1M' | '3M' | '6M' | '1Y' | 'ALL'>('1M')
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
-  }
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
 
   const getFilteredData = () => {
     const now = new Date()
@@ -51,97 +46,105 @@ export default function PerformanceChart({ data, title = 'Portfolio Performance'
   const totalChangePercent = firstValue > 0 ? (totalChange / firstValue) * 100 : 0
 
   return (
-    <div className="performance-chart">
-      <div className="chart-header">
-        <div className="chart-title-section">
-          <h3>{title}</h3>
-          <div className="chart-stats">
-            <span className="chart-value">{formatCurrency(latestValue)}</span>
-            <span className={`chart-change ${totalChange >= 0 ? 'positive' : 'negative'}`}>
-              {totalChange >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-              {totalChange >= 0 ? '+' : ''}{formatCurrency(totalChange)} ({totalChangePercent >= 0 ? '+' : ''}{totalChangePercent.toFixed(2)}%)
-            </span>
-          </div>
-          <AsOfTimestamp timestamp={filteredData[filteredData.length - 1]?.date || new Date()} />
-        </div>
-        <div className="time-range-selector">
-          {(['1M', '3M', '6M', '1Y', 'ALL'] as const).map(range => (
-            <button
-              key={range}
-              className={`time-range-btn ${timeRange === range ? 'active' : ''}`}
-              onClick={() => setTimeRange(range)}
-            >
-              {range}
-            </button>
-          ))}
-        </div>
+    <ChartContainer
+      title={title}
+      subtitle={`${formatters.date(filteredData[0]?.date || new Date())} - ${formatters.date(filteredData[filteredData.length - 1]?.date || new Date())}`}
+      height={450}
+      loading={loading}
+      actions={
+        <TimeRangeSelector 
+          value={timeRange} 
+          onChange={(value) => setTimeRange(value as typeof timeRange)} 
+        />
+      }
+    >
+      {/* Stats Row */}
+      <div className="grid grid-cols-3 gap-md mb-lg">
+        <ChartStatCard
+          label="Current Value"
+          value={formatters.currency(latestValue)}
+          icon={<TrendingUp size={20} />}
+        />
+        <ChartStatCard
+          label="Total Change"
+          value={formatters.currency(totalChange)}
+          change={formatters.percentage(totalChangePercent)}
+          changeType={totalChange >= 0 ? 'positive' : 'negative'}
+          icon={totalChange >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+        />
+        <ChartStatCard
+          label="Period Return"
+          value={formatters.percentage(totalChangePercent)}
+          changeType={totalChangePercent >= 0 ? 'positive' : 'negative'}
+        />
       </div>
 
-      <div className="chart-container-large">
-        <ResponsiveContainer width="100%" height={400}>
-          <AreaChart data={filteredData}>
-            <defs>
-              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+      {/* Chart */}
+      <ResponsiveContainer width="100%" height={300}>
+        <AreaChart 
+          data={filteredData}
+          margin={chartConfig.margin}
+        >
+          <defs>
+            <linearGradient id="gradientPrimary" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={chartColors.primary} stopOpacity={0.4}/>
+              <stop offset="95%" stopColor={chartColors.primary} stopOpacity={0}/>
+            </linearGradient>
+            {showComparison && (
+              <linearGradient id="gradientSuccess" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={chartColors.success} stopOpacity={0.4}/>
+                <stop offset="95%" stopColor={chartColors.success} stopOpacity={0}/>
               </linearGradient>
-              {showComparison && (
-                <linearGradient id="colorBenchmark" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                </linearGradient>
-              )}
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis 
-              dataKey="date" 
-              tickFormatter={formatDate}
-              stroke="#6b7280"
-              style={{ fontSize: '0.875rem' }}
-            />
-            <YAxis 
-              tickFormatter={formatCurrency}
-              stroke="#6b7280"
-              style={{ fontSize: '0.875rem' }}
-            />
-            <Tooltip 
-              formatter={(value: number) => formatCurrency(value)}
-              labelFormatter={(label: string) => new Date(label).toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
-              contentStyle={{
-                background: '#fff',
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-                padding: '12px',
-              }}
-            />
-            <Legend />
+            )}
+          </defs>
+          <CartesianGrid 
+            {...chartConfig.grid}
+          />
+          <XAxis 
+            dataKey="date" 
+            tickFormatter={formatters.date}
+            {...chartConfig.axis}
+            tick={{ fill: chartColors.text }}
+          />
+          <YAxis 
+            tickFormatter={formatters.currency}
+            {...chartConfig.axis}
+            tick={{ fill: chartColors.text }}
+          />
+          <CustomTooltip formatter={formatters.currencyPrecise} />
+          <Legend 
+            {...chartConfig.legend}
+          />
+          <Area
+            type="monotone"
+            dataKey="value"
+            stroke={chartColors.primary}
+            strokeWidth={chartConfig.line.strokeWidth}
+            fillOpacity={1}
+            fill="url(#gradientPrimary)"
+            name="Portfolio Value"
+            dot={chartConfig.line.dot}
+            activeDot={chartConfig.line.activeDot}
+            animationDuration={chartConfig.animation.duration}
+            animationEasing={chartConfig.animation.easing}
+          />
+          {showComparison && benchmarkData && (
             <Area
               type="monotone"
-              dataKey="value"
-              stroke="#3b82f6"
-              strokeWidth={2}
+              dataKey="benchmarkValue"
+              stroke={chartColors.success}
+              strokeWidth={chartConfig.line.strokeWidth}
               fillOpacity={1}
-              fill="url(#colorValue)"
-              name="Portfolio Value"
+              fill="url(#gradientSuccess)"
+              name="S&P 500"
+              dot={chartConfig.line.dot}
+              activeDot={chartConfig.line.activeDot}
+              animationDuration={chartConfig.animation.duration}
+              animationEasing={chartConfig.animation.easing}
             />
-            {showComparison && benchmarkData && (
-              <Area
-                type="monotone"
-                dataKey="benchmarkValue"
-                stroke="#10b981"
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#colorBenchmark)"
-                name="S&P 500"
-              />
-            )}
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
+          )}
+        </AreaChart>
+      </ResponsiveContainer>
+    </ChartContainer>
   )
 }

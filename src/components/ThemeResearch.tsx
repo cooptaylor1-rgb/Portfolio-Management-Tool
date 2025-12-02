@@ -1,6 +1,9 @@
 import React, { useState } from 'react'
 import { TrendingUp, Layers, Globe, AlertTriangle, Info, PieChart as PieChartIcon } from 'lucide-react'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { ChartContainer, ChartLegendItem } from './ChartComponents'
+import { CustomTooltip } from './CustomTooltip'
+import { chartColors, chartConfig, chartPalette, formatters } from '../config/chartTheme'
 
 interface ThemeConstituent {
   ticker: string
@@ -195,8 +198,6 @@ const MOCK_ANALYTICS: Record<string, ThemeAnalytics> = {
   }
 }
 
-const COLORS = ['#00d9ff', '#00ff88', '#ffaa00', '#ff3366', '#8b5cf6', '#ec4899']
-
 export const ThemeResearch: React.FC = () => {
   const [selectedTheme, setSelectedTheme] = useState<string>('ai-infrastructure')
 
@@ -322,25 +323,52 @@ export const ThemeResearch: React.FC = () => {
 
       {/* Performance & Risk */}
       <div className="theme-analytics-grid">
-        <div className="theme-analytics-card">
-          <h3>Performance</h3>
+        <ChartContainer title="Performance" height={300}>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={performanceData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
-              <XAxis dataKey="period" stroke="#7a8490" />
-              <YAxis stroke="#7a8490" tickFormatter={(val) => `${val}%`} />
-              <Tooltip
-                contentStyle={{
-                  background: '#1a1f2e',
-                  border: '1px solid #3d4654',
-                  borderRadius: '8px'
-                }}
-                formatter={(value: number) => [`${value.toFixed(1)}%`, 'Return']}
+            <BarChart data={performanceData} margin={chartConfig.margin}>
+              <defs>
+                <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={chartColors.success} stopOpacity={0.9} />
+                  <stop offset="95%" stopColor={chartColors.success} stopOpacity={0.6} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid 
+                strokeDasharray="3 3" 
+                stroke={chartColors.grid} 
+                opacity={0.5}
+                vertical={false}
               />
-              <Bar dataKey="return" fill="#00ff88" radius={[4, 4, 0, 0]} />
+              <XAxis 
+                dataKey="period" 
+                stroke={chartColors.border}
+                tick={{ fill: chartColors.textTertiary, fontSize: 12 }}
+                axisLine={{ stroke: chartColors.border }}
+                tickLine={false}
+              />
+              <YAxis 
+                stroke={chartColors.border}
+                tick={{ fill: chartColors.textTertiary, fontSize: 12 }}
+                tickFormatter={(val) => formatters.percentage(val / 100)}
+                axisLine={{ stroke: chartColors.border }}
+                tickLine={false}
+              />
+              <Tooltip
+                content={(props) => (
+                  <CustomTooltip 
+                    {...props}
+                    formatter={(value) => `${(value as number).toFixed(1)}%`}
+                  />
+                )}
+              />
+              <Bar 
+                dataKey="return" 
+                fill="url(#barGradient)" 
+                radius={chartConfig.bar.radius}
+                animationDuration={chartConfig.animation.duration}
+              />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </ChartContainer>
 
         <div className="theme-analytics-card">
           <h3>Risk Metrics</h3>
@@ -397,11 +425,21 @@ export const ThemeResearch: React.FC = () => {
 
       {/* Sector & Region Breakdown */}
       <div className="breakdown-grid">
-        <div className="breakdown-card">
-          <h3>Sector Breakdown</h3>
+        <ChartContainer title="Sector Breakdown" height={280}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
             <ResponsiveContainer width="40%" height={200}>
               <PieChart>
+                <defs>
+                  {chartPalette.map((color, idx) => (
+                    <filter key={`glow-${idx}`} id={`sector-glow-${idx}`}>
+                      <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                      <feMerge>
+                        <feMergeNode in="coloredBlur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  ))}
+                </defs>
                 <Pie
                   data={analytics.sectorBreakdown}
                   cx="50%"
@@ -410,30 +448,56 @@ export const ThemeResearch: React.FC = () => {
                   outerRadius={80}
                   paddingAngle={2}
                   dataKey="weight"
+                  stroke={chartColors.background}
+                  strokeWidth={2}
+                  animationDuration={chartConfig.animation.duration}
                 >
                   {analytics.sectorBreakdown.map((_entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={chartPalette[index % chartPalette.length]}
+                      filter={`url(#sector-glow-${index % chartPalette.length})`}
+                    />
                   ))}
                 </Pie>
+                <Tooltip
+                  content={(props) => (
+                    <CustomTooltip 
+                      {...props}
+                      formatter={(value) => `${value}%`}
+                    />
+                  )}
+                />
               </PieChart>
             </ResponsiveContainer>
-            <div className="breakdown-legend">
+            <div className="breakdown-legend" style={{ flex: 1 }}>
               {analytics.sectorBreakdown.map((item, index) => (
-                <div key={item.sector} className="legend-item">
-                  <div className="legend-color" style={{ background: COLORS[index % COLORS.length] }} />
-                  <span className="legend-label">{item.sector}</span>
-                  <span className="legend-value">{item.weight}%</span>
-                </div>
+                <ChartLegendItem
+                  key={item.sector}
+                  color={chartPalette[index % chartPalette.length]}
+                  label={item.sector}
+                  value={`${item.weight}%`}
+                />
               ))}
             </div>
           </div>
-        </div>
+        </ChartContainer>
 
-        <div className="breakdown-card">
-          <h3>Regional Exposure</h3>
+        <ChartContainer title="Regional Exposure" height={280}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
             <ResponsiveContainer width="40%" height={200}>
               <PieChart>
+                <defs>
+                  {chartPalette.map((color, idx) => (
+                    <filter key={`glow-${idx}`} id={`region-glow-${idx}`}>
+                      <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                      <feMerge>
+                        <feMergeNode in="coloredBlur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  ))}
+                </defs>
                 <Pie
                   data={analytics.regionBreakdown}
                   cx="50%"
@@ -442,22 +506,40 @@ export const ThemeResearch: React.FC = () => {
                   outerRadius={80}
                   paddingAngle={2}
                   dataKey="weight"
+                  stroke={chartColors.background}
+                  strokeWidth={2}
+                  animationDuration={chartConfig.animation.duration}
                 >
                   {analytics.regionBreakdown.map((_entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={chartPalette[index % chartPalette.length]}
+                      filter={`url(#region-glow-${index % chartPalette.length})`}
+                    />
                   ))}
                 </Pie>
+                <Tooltip
+                  content={(props) => (
+                    <CustomTooltip 
+                      {...props}
+                      formatter={(value) => `${value}%`}
+                    />
+                  )}
+                />
               </PieChart>
             </ResponsiveContainer>
-            <div className="breakdown-legend">
+            <div className="breakdown-legend" style={{ flex: 1 }}>
               {analytics.regionBreakdown.map((item, index) => (
-                <div key={item.region} className="legend-item">
-                  <div className="legend-color" style={{ background: COLORS[index % COLORS.length] }} />
-                  <span className="legend-label">{item.region}</span>
-                  <span className="legend-value">{item.weight}%</span>
-                </div>
+                <ChartLegendItem
+                  key={item.region}
+                  color={chartPalette[index % chartPalette.length]}
+                  label={item.region}
+                  value={`${item.weight}%`}
+                />
               ))}
             </div>
+          </div>
+        </ChartContainer>
           </div>
         </div>
       </div>

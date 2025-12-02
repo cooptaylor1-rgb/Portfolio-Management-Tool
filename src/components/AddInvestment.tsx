@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Investment } from '../types'
+import { Button, Input, Select } from './ui'
+import { DollarSign } from 'lucide-react'
 
 interface AddInvestmentProps {
   onAdd: (investment: Omit<Investment, 'id'>) => void
@@ -7,6 +9,7 @@ interface AddInvestmentProps {
 }
 
 export default function AddInvestment({ onAdd, onCancel }: AddInvestmentProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     symbol: '',
@@ -28,28 +31,33 @@ export default function AddInvestment({ onAdd, onCancel }: AddInvestmentProps) {
     { value: 'other', label: 'Other', description: 'Other investment types' }
   ]
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     const newErrors: Record<string, string> = {}
     
-    if (!formData.name.trim()) newErrors.name = 'Investment name is required'
-    if (!formData.symbol.trim()) newErrors.symbol = 'Symbol/ticker is required'
+    if (!formData.name.trim()) newErrors.name = 'Required'
+    if (!formData.symbol.trim()) newErrors.symbol = 'Required'
     if (!formData.quantity || parseFloat(formData.quantity) <= 0) {
-      newErrors.quantity = 'Quantity must be greater than 0'
+      newErrors.quantity = 'Must be greater than 0'
     }
     if (!formData.purchasePrice || parseFloat(formData.purchasePrice) <= 0) {
-      newErrors.purchasePrice = 'Purchase price must be greater than 0'
+      newErrors.purchasePrice = 'Must be greater than 0'
     }
     if (!formData.currentPrice || parseFloat(formData.currentPrice) <= 0) {
-      newErrors.currentPrice = 'Current price must be greater than 0'
+      newErrors.currentPrice = 'Must be greater than 0'
     }
-    if (!formData.purchaseDate) newErrors.purchaseDate = 'Purchase date is required'
+    if (!formData.purchaseDate) newErrors.purchaseDate = 'Required'
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       return
     }
+
+    setIsSubmitting(true)
+    
+    // Simulate async operation for smoother UX
+    await new Promise(resolve => setTimeout(resolve, 300))
 
     onAdd({
       name: formData.name.trim(),
@@ -61,16 +69,8 @@ export default function AddInvestment({ onAdd, onCancel }: AddInvestmentProps) {
       purchaseDate: formData.purchaseDate
     })
 
-    setFormData({
-      name: '',
-      symbol: '',
-      type: 'stock',
-      quantity: '',
-      purchasePrice: '',
-      currentPrice: '',
-      purchaseDate: new Date().toISOString().split('T')[0]
-    })
-    setErrors({})
+    setIsSubmitting(false)
+    // Form will be unmounted after onAdd, no need to reset
   }
 
   const handleChange = (field: string, value: string) => {
@@ -81,149 +81,133 @@ export default function AddInvestment({ onAdd, onCancel }: AddInvestmentProps) {
   }
 
   return (
-    <div className="add-investment-form">
-      <h3>Add New Investment</h3>
-      <p className="form-description">
-        Fill in the details about your investment below. Don't worry if you're not sure about some fields - 
-        hover over the ⓘ icons for helpful explanations!
+    <div className="card" style={{ marginTop: 'var(--spacing-md)', background: 'var(--bg-elevated)' }}>
+      <h3 className="text-lg font-semibold text-primary mb-sm">Add New Investment</h3>
+      <p className="text-secondary text-sm mb-lg">
+        Fill in the details about your investment below. All fields marked with * are required.
       </p>
 
       <form onSubmit={handleSubmit}>
-        <div className="form-grid">
-          <div className="form-group">
-            <label htmlFor="name">
-              Investment Name *
-              <span className="tooltip-trigger" title="The full name of your investment (e.g., 'Apple Inc.' or 'S&P 500 ETF')">ⓘ</span>
-            </label>
-            <input
-              type="text"
-              id="name"
-              value={formData.name}
-              onChange={(e) => handleChange('name', e.target.value)}
-              placeholder="e.g., Apple Inc."
-              className={errors.name ? 'error' : ''}
-            />
-            {errors.name && <span className="error-message">{errors.name}</span>}
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 'var(--spacing-md)' }}>
+          <Input
+            id="name"
+            label="Investment Name"
+            value={formData.name}
+            onChange={(e) => handleChange('name', e.target.value)}
+            placeholder="e.g., Apple Inc."
+            error={errors.name}
+            helpText="The full name of your investment"
+            required
+            disabled={isSubmitting}
+          />
 
-          <div className="form-group">
-            <label htmlFor="symbol">
-              Symbol/Ticker *
-              <span className="tooltip-trigger" title="The trading symbol (e.g., 'AAPL' for Apple, 'SPY' for S&P 500 ETF)">ⓘ</span>
-            </label>
-            <input
-              type="text"
-              id="symbol"
-              value={formData.symbol}
-              onChange={(e) => handleChange('symbol', e.target.value)}
-              placeholder="e.g., AAPL"
-              className={errors.symbol ? 'error' : ''}
-            />
-            {errors.symbol && <span className="error-message">{errors.symbol}</span>}
-          </div>
+          <Input
+            id="symbol"
+            label="Symbol/Ticker"
+            value={formData.symbol}
+            onChange={(e) => handleChange('symbol', e.target.value.toUpperCase())}
+            placeholder="e.g., AAPL"
+            error={errors.symbol}
+            helpText="The trading symbol"
+            required
+            disabled={isSubmitting}
+            style={{ textTransform: 'uppercase' }}
+          />
 
-          <div className="form-group full-width">
-            <label htmlFor="type">
-              Investment Type *
-              <span className="tooltip-trigger" title="What kind of investment is this? Different types have different risk and return characteristics">ⓘ</span>
-            </label>
-            <select
+          <div style={{ gridColumn: '1 / -1' }}>
+            <Select
               id="type"
+              label="Investment Type"
               value={formData.type}
               onChange={(e) => handleChange('type', e.target.value)}
-            >
-              {investmentTypes.map(type => (
-                <option key={type.value} value={type.value}>
-                  {type.label} - {type.description}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="quantity">
-              Quantity/Shares *
-              <span className="tooltip-trigger" title="How many shares or units do you own?">ⓘ</span>
-            </label>
-            <input
-              type="number"
-              id="quantity"
-              value={formData.quantity}
-              onChange={(e) => handleChange('quantity', e.target.value)}
-              placeholder="e.g., 10"
-              step="0.01"
-              min="0"
-              className={errors.quantity ? 'error' : ''}
+              error={errors.type}
+              helpText="Different types have different risk profiles"
+              required
+              disabled={isSubmitting}
+              options={investmentTypes.map(t => ({
+                value: t.value,
+                label: `${t.label} - ${t.description}`
+              }))}
             />
-            {errors.quantity && <span className="error-message">{errors.quantity}</span>}
           </div>
 
-          <div className="form-group">
-            <label htmlFor="purchaseDate">
-              Purchase Date *
-              <span className="tooltip-trigger" title="When did you buy this investment?">ⓘ</span>
-            </label>
-            <input
-              type="date"
-              id="purchaseDate"
-              value={formData.purchaseDate}
-              onChange={(e) => handleChange('purchaseDate', e.target.value)}
-              max={new Date().toISOString().split('T')[0]}
-              className={errors.purchaseDate ? 'error' : ''}
-            />
-            {errors.purchaseDate && <span className="error-message">{errors.purchaseDate}</span>}
-          </div>
+          <Input
+            id="quantity"
+            label="Quantity/Shares"
+            type="number"
+            value={formData.quantity}
+            onChange={(e) => handleChange('quantity', e.target.value)}
+            placeholder="e.g., 10"
+            error={errors.quantity}
+            helpText="How many shares or units"
+            required
+            disabled={isSubmitting}
+            step="0.01"
+            min="0"
+          />
 
-          <div className="form-group">
-            <label htmlFor="purchasePrice">
-              Purchase Price (per share) *
-              <span className="tooltip-trigger" title="What price did you pay for each share when you bought it?">ⓘ</span>
-            </label>
-            <div className="input-with-prefix">
-              <span className="input-prefix">$</span>
-              <input
-                type="number"
-                id="purchasePrice"
-                value={formData.purchasePrice}
-                onChange={(e) => handleChange('purchasePrice', e.target.value)}
-                placeholder="e.g., 150.00"
-                step="0.01"
-                min="0"
-                className={errors.purchasePrice ? 'error' : ''}
-              />
-            </div>
-            {errors.purchasePrice && <span className="error-message">{errors.purchasePrice}</span>}
-          </div>
+          <Input
+            id="purchaseDate"
+            label="Purchase Date"
+            type="date"
+            value={formData.purchaseDate}
+            onChange={(e) => handleChange('purchaseDate', e.target.value)}
+            error={errors.purchaseDate}
+            helpText="When you bought it"
+            required
+            disabled={isSubmitting}
+            max={new Date().toISOString().split('T')[0]}
+          />
 
-          <div className="form-group">
-            <label htmlFor="currentPrice">
-              Current Price (per share) *
-              <span className="tooltip-trigger" title="What is the current market price of each share?">ⓘ</span>
-            </label>
-            <div className="input-with-prefix">
-              <span className="input-prefix">$</span>
-              <input
-                type="number"
-                id="currentPrice"
-                value={formData.currentPrice}
-                onChange={(e) => handleChange('currentPrice', e.target.value)}
-                placeholder="e.g., 175.00"
-                step="0.01"
-                min="0"
-                className={errors.currentPrice ? 'error' : ''}
-              />
-            </div>
-            {errors.currentPrice && <span className="error-message">{errors.currentPrice}</span>}
-          </div>
+          <Input
+            id="purchasePrice"
+            label="Purchase Price"
+            type="number"
+            value={formData.purchasePrice}
+            onChange={(e) => handleChange('purchasePrice', e.target.value)}
+            placeholder="150.00"
+            error={errors.purchasePrice}
+            helpText="Price per share when bought"
+            required
+            disabled={isSubmitting}
+            leftIcon={<DollarSign size={16} />}
+            step="0.01"
+            min="0"
+          />
+
+          <Input
+            id="currentPrice"
+            label="Current Price"
+            type="number"
+            value={formData.currentPrice}
+            onChange={(e) => handleChange('currentPrice', e.target.value)}
+            placeholder="175.00"
+            error={errors.currentPrice}
+            helpText="Current market price per share"
+            required
+            disabled={isSubmitting}
+            leftIcon={<DollarSign size={16} />}
+            step="0.01"
+            min="0"
+          />
         </div>
 
-        <div className="form-actions">
-          <button type="button" className="btn btn-secondary" onClick={onCancel}>
+        <div className="form-actions" style={{ marginTop: 'var(--spacing-xl)', display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end' }}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onCancel}
+            disabled={isSubmitting}
+          >
             Cancel
-          </button>
-          <button type="submit" className="btn btn-primary">
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            loading={isSubmitting}
+          >
             Add Investment
-          </button>
+          </Button>
         </div>
       </form>
     </div>
