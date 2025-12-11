@@ -540,8 +540,6 @@ export const ThemeResearch: React.FC = () => {
             </div>
           </div>
         </ChartContainer>
-          </div>
-        </div>
       </div>
 
       {/* Top Constituents */}

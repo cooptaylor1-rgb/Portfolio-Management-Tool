@@ -1,0 +1,368 @@
+// Prisma Schema for Portfolio Management Tool
+// Run: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER & AUTHENTICATION
+// ============================================================================
+
+model User {
+  id                  String    @id @default(uuid())
+  email               String    @unique
+  passwordHash        String    @map("password_hash")
+  name                String
+  avatar              String?
+  
+  // MFA
+  mfaSecret           String?   @map("mfa_secret")
+  mfaEnabled          Boolean   @default(false) @map("mfa_enabled")
+  
+  // Email verification
+  emailVerified       Boolean   @default(false) @map("email_verified")
+  emailVerifyToken    String?   @map("email_verify_token")
+  
+  // Security
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until")
+  
+  // Timestamps
+  lastLogin           DateTime? @map("last_login")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  refreshTokens       RefreshToken[]
+  ownedPortfolios     Portfolio[]      @relation("PortfolioOwner")
+  sharedPortfolios    PortfolioShare[]
+  activities          PortfolioActivity[]
+  watchlist           WatchlistItem[]
+  alerts              Alert[]
+  tradeIdeas          TradeIdea[]
+  researchNotes       ResearchNote[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  tokenHash   String    @map("token_hash")
+  deviceInfo  Json?     @map("device_info")
+  ipAddress   String?   @map("ip_address")
+  expiresAt   DateTime  @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+// ============================================================================
+// PORTFOLIO & INVESTMENTS
+// ============================================================================
+
+model Portfolio {
+  id          String    @id @default(uuid())
+  ownerId     String    @map("owner_id")
+  name        String
+  description String?
+  isPublic    Boolean   @default(false) @map("is_public")
+  settings    Json      @default("{}")
+  
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  owner       User      @relation("PortfolioOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  investments Investment[]
+  shares      PortfolioShare[]
+  activities  PortfolioActivity[]
+  snapshots   PortfolioSnapshot[]
+
+  @@index([ownerId])
+  @@map("portfolios")
+}
+
+model Investment {
+  id            String    @id @default(uuid())
+  portfolioId   String    @map("portfolio_id")
+  symbol        String
+  name          String
+  type          InvestmentType
+  quantity      Decimal   @db.Decimal(18, 8)
+  purchasePrice Decimal   @map("purchase_price") @db.Decimal(18, 8)
+  purchaseDate  DateTime  @map("purchase_date") @db.Date
+  sector        String?
+  notes         String?
+  
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  portfolio     Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+
+  @@index([portfolioId])
+  @@index([symbol])
+  @@map("investments")
+}
+
+enum InvestmentType {
+  STOCK
+  BOND
+  ETF
+  MUTUAL_FUND
+  CRYPTO
+  OTHER
+}
+
+model Transaction {
+  id            String          @id @default(uuid())
+  investmentId  String          @map("investment_id")
+  type          TransactionType
+  quantity      Decimal         @db.Decimal(18, 8)
+  price         Decimal         @db.Decimal(18, 8)
+  fees          Decimal?        @db.Decimal(18, 8)
+  date          DateTime        @db.Date
+  notes         String?
+  
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  // Relations
+  investment    Investment      @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@index([investmentId])
+  @@index([date])
+  @@map("transactions")
+}
+
+enum TransactionType {
+  BUY
+  SELL
+  DIVIDEND
+  SPLIT
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
+// ============================================================================
+// COLLABORATION
+// ============================================================================
+
+model PortfolioShare {
+  id          String          @id @default(uuid())
+  portfolioId String          @map("portfolio_id")
+  userId      String          @map("user_id")
+  permission  SharePermission
+  
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  // Relations
+  portfolio   Portfolio       @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, userId])
+  @@index([userId])
+  @@map("portfolio_shares")
+}
+
+enum SharePermission {
+  VIEW
+  EDIT
+  ADMIN
+}
+
+model PortfolioActivity {
+  id          String    @id @default(uuid())
+  portfolioId String    @map("portfolio_id")
+  userId      String    @map("user_id")
+  action      String
+  details     Json?
+  ipAddress   String?   @map("ip_address")
+  userAgent   String?   @map("user_agent")
+  
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@index([portfolioId])
+  @@index([createdAt(sort: Desc)])
+  @@map("portfolio_activities")
+}
+
+// ============================================================================
+// SNAPSHOTS & ANALYTICS
+// ============================================================================
+
+model PortfolioSnapshot {
+  id              String    @id @default(uuid())
+  portfolioId     String    @map("portfolio_id")
+  date            DateTime  @db.Date
+  totalValue      Decimal   @map("total_value") @db.Decimal(18, 2)
+  totalInvested   Decimal   @map("total_invested") @db.Decimal(18, 2)
+  dailyChange     Decimal?  @map("daily_change") @db.Decimal(18, 2)
+  holdings        Json      // Snapshot of all positions
+  
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  portfolio       Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, date])
+  @@index([portfolioId, date(sort: Desc)])
+  @@map("portfolio_snapshots")
+}
+
+// ============================================================================
+// WATCHLIST & ALERTS
+// ============================================================================
+
+model WatchlistItem {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  symbol      String
+  name        String
+  type        String
+  targetPrice Decimal?  @map("target_price") @db.Decimal(18, 8)
+  notes       String?
+  
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, symbol])
+  @@index([userId])
+  @@map("watchlist_items")
+}
+
+model Alert {
+  id          String      @id @default(uuid())
+  userId      String      @map("user_id")
+  type        AlertType
+  severity    AlertSeverity
+  title       String
+  message     String
+  read        Boolean     @default(false)
+  actionable  Boolean     @default(false)
+  metadata    Json?
+  
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([createdAt(sort: Desc)])
+  @@map("alerts")
+}
+
+enum AlertType {
+  PRICE
+  PERFORMANCE
+  RISK
+  REBALANCE
+  TAX
+  NEWS
+  SYSTEM
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+// ============================================================================
+// RESEARCH & TRADE IDEAS
+// ============================================================================
+
+model TradeIdea {
+  id              String          @id @default(uuid())
+  userId          String          @map("user_id")
+  symbol          String
+  name            String
+  status          TradeIdeaStatus
+  entryPrice      Decimal?        @map("entry_price") @db.Decimal(18, 8)
+  exitPrice       Decimal?        @map("exit_price") @db.Decimal(18, 8)
+  targetPrice     Decimal         @map("target_price") @db.Decimal(18, 8)
+  stopLoss        Decimal         @map("stop_loss") @db.Decimal(18, 8)
+  conviction      Int             // 1-5
+  timeHorizon     String          @map("time_horizon")
+  thesis          String
+  entryRationale  String          @map("entry_rationale")
+  exitRationale   String?         @map("exit_rationale")
+  tags            String[]
+  catalysts       String[]
+  risks           String[]
+  notes           String?
+  
+  entryDate       DateTime?       @map("entry_date")
+  exitDate        DateTime?       @map("exit_date")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([symbol])
+  @@index([status])
+  @@map("trade_ideas")
+}
+
+enum TradeIdeaStatus {
+  WATCHING
+  ACTIVE
+  CLOSED
+  STOPPED
+}
+
+model ResearchNote {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  title       String
+  content     String
+  symbols     String[]
+  tags        String[]
+  
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("research_notes")
+}
+
+// ============================================================================
+// MARKET DATA CACHE (Optional - for offline/speed)
+// ============================================================================
+
+model QuoteCache {
+  symbol      String    @id
+  price       Decimal   @db.Decimal(18, 8)
+  change      Decimal   @db.Decimal(18, 8)
+  changePercent Decimal @map("change_percent") @db.Decimal(10, 4)
+  volume      BigInt?
+  marketCap   BigInt?   @map("market_cap")
+  data        Json      // Full quote data
+  
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("quote_cache")
+}
