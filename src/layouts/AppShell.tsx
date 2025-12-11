@@ -9,10 +9,11 @@
  */
 
 import { useState, useCallback, createContext, useContext } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
-import { Sidebar } from './Sidebar';
+import { Outlet } from 'react-router-dom';
+import { Sidebar } from './SidebarV2';
 import { TopBar } from './TopBar';
 import { DetailsPanel, DetailsPanelContent } from './DetailsPanel';
+import './sidebar-v2.css';
 
 interface ShellContextType {
   sidebarCollapsed: boolean;
@@ -35,7 +36,6 @@ export function useShell() {
 }
 
 export function AppShell() {
-  const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [detailsPanel, setDetailsPanel] = useState<DetailsPanelContent | null>(null);
   
@@ -70,7 +70,9 @@ export function AppShell() {
   return (
     <ShellContext.Provider value={contextValue}>
       <div className="app-shell">
-        <Sidebar collapsed={sidebarCollapsed} currentPath={location.pathname} />
+        <div className={`app-shell__sidebar ${sidebarCollapsed ? 'app-shell__sidebar--collapsed' : ''}`}>
+          <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
+        </div>
         
         <div className={`app-shell__main ${sidebarCollapsed ? 'app-shell__main--expanded' : ''}`}>
           <TopBar onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />

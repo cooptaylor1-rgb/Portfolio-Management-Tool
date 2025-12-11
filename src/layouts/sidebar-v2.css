@@ -1,0 +1,355 @@
+/**
+ * Sidebar V2 - Palantir-Grade Navigation Styles
+ * 
+ * Dense, compact, professional navigation with:
+ * - Grouped sections with collapsible headers
+ * - Icon-only rail mode when collapsed
+ * - Keyboard focus states
+ * - Badge support
+ */
+
+/* ==========================================================================
+   Sidebar Container
+   ========================================================================== */
+
+.sidebar-v2 {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: var(--sidebar-width, 220px);
+  background: var(--bg-secondary, #141416);
+  border-right: 1px solid var(--border-primary, #2a2a2e);
+  transition: width 0.2s ease;
+  overflow: hidden;
+}
+
+.sidebar-v2--collapsed {
+  width: var(--sidebar-width-collapsed, 56px);
+}
+
+/* ==========================================================================
+   Brand
+   ========================================================================== */
+
+.sidebar-v2__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-primary, #2a2a2e);
+  flex-shrink: 0;
+}
+
+.sidebar-v2__logo {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.sidebar-v2__brand-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #f0f0f0);
+  white-space: nowrap;
+}
+
+.sidebar-v2--collapsed .sidebar-v2__brand {
+  justify-content: center;
+  padding: 14px 12px;
+}
+
+.sidebar-v2--collapsed .sidebar-v2__brand-text {
+  display: none;
+}
+
+/* ==========================================================================
+   Quick Access (Dashboard, etc.)
+   ========================================================================== */
+
+.sidebar-v2__quick-access {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-primary, #2a2a2e);
+  flex-shrink: 0;
+}
+
+.sidebar-v2--collapsed .sidebar-v2__quick-access {
+  padding: 8px 4px;
+}
+
+/* ==========================================================================
+   Main Navigation
+   ========================================================================== */
+
+.sidebar-v2__nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+}
+
+.sidebar-v2--collapsed .sidebar-v2__nav {
+  padding: 8px 4px;
+}
+
+/* Custom scrollbar */
+.sidebar-v2__nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-v2__nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-v2__nav::-webkit-scrollbar-thumb {
+  background: var(--border-primary, #2a2a2e);
+  border-radius: 4px;
+}
+
+.sidebar-v2__nav::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary, #6b6b70);
+}
+
+/* ==========================================================================
+   Bottom Navigation
+   ========================================================================== */
+
+.sidebar-v2__bottom {
+  padding: 8px;
+  border-top: 1px solid var(--border-primary, #2a2a2e);
+  flex-shrink: 0;
+}
+
+.sidebar-v2--collapsed .sidebar-v2__bottom {
+  padding: 8px 4px;
+}
+
+/* ==========================================================================
+   Nav Section
+   ========================================================================== */
+
+.nav-section {
+  margin-bottom: 4px;
+}
+
+.nav-section__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-tertiary, #8b8b90);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.nav-section__header:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary, #a0a0a5);
+}
+
+.nav-section__header--active {
+  color: var(--text-secondary, #a0a0a5);
+}
+
+.nav-section__header--collapsed {
+  justify-content: center;
+  padding: 10px;
+}
+
+.nav-section__icon {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.nav-section__label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-section__chevron {
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: transform 0.2s ease;
+}
+
+.nav-section__chevron--expanded {
+  transform: rotate(90deg);
+}
+
+/* Section Items Container */
+.nav-section__items {
+  margin-top: 2px;
+  margin-left: 8px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border-primary, #2a2a2e);
+}
+
+/* ==========================================================================
+   Nav Item
+   ========================================================================== */
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary, #a0a0a5);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  position: relative;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary, #f0f0f0);
+}
+
+.nav-item:focus-visible {
+  outline: 2px solid var(--interactive-active, #3b82f6);
+  outline-offset: -2px;
+}
+
+.nav-item--active {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--interactive-active, #3b82f6);
+}
+
+.nav-item--active:hover {
+  background: rgba(59, 130, 246, 0.16);
+}
+
+/* Nested items (inside sections) */
+.nav-item--nested {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.nav-item__icon {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.nav-item--active .nav-item__icon {
+  opacity: 1;
+}
+
+.nav-item__label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-item__badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 5px;
+  min-width: 18px;
+  text-align: center;
+  background: var(--color-negative, #ef4444);
+  color: #fff;
+  border-radius: 9px;
+  line-height: 1.2;
+}
+
+.nav-item__shortcut {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-tertiary, #6b6b70);
+  padding: 2px 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  font-family: var(--font-mono, 'SF Mono', Monaco, monospace);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.nav-item:hover .nav-item__shortcut {
+  opacity: 1;
+}
+
+/* ==========================================================================
+   Collapsed State
+   ========================================================================== */
+
+.sidebar-v2--collapsed .nav-item {
+  justify-content: center;
+  padding: 10px;
+}
+
+.sidebar-v2--collapsed .nav-item__label,
+.sidebar-v2--collapsed .nav-item__badge,
+.sidebar-v2--collapsed .nav-item__shortcut,
+.sidebar-v2--collapsed .nav-section__label,
+.sidebar-v2--collapsed .nav-section__chevron,
+.sidebar-v2--collapsed .nav-section__items {
+  display: none;
+}
+
+.sidebar-v2--collapsed .nav-section {
+  margin-bottom: 2px;
+}
+
+.sidebar-v2--collapsed .nav-section__header {
+  justify-content: center;
+  padding: 8px;
+}
+
+/* Collapsed badge indicator (dot) */
+.sidebar-v2--collapsed .nav-item[data-has-badge]::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  background: var(--color-negative, #ef4444);
+  border-radius: 50%;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .sidebar-v2 {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease, width 0.2s ease;
+  }
+
+  .sidebar-v2--open {
+    transform: translateX(0);
+  }
+
+  .sidebar-v2--collapsed {
+    transform: translateX(-100%);
+  }
+}
