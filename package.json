@@ -10,10 +10,14 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
+    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.13.13",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.292.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "recharts": "^2.10.3",
-    "lucide-react": "^0.292.0"
+    "react-router-dom": "^7.10.1",
+    "recharts": "^2.10.3"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
