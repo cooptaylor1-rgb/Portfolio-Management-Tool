@@ -17,7 +17,7 @@ export { default as MacroPage } from './MacroPage';
 export { default as TradeJournalPage } from './TradeJournalPage';
 export { default as PositionSizingPage } from './PositionSizingPage';
 export { default as DividendsPage } from './DividendsPage';
-export { default as WatchlistPage } from './WatchlistPage';
+export { default as WatchlistPage } from './WatchlistPageV2'; // Use V2 version
 export { default as AlertsPage } from './AlertsPage';
 export { default as CollaboratePage } from './CollaboratePage';
 export { default as SettingsPage } from './SettingsPage';

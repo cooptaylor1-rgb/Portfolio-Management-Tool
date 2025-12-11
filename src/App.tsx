@@ -3,7 +3,6 @@ import { Investment, PortfolioStats } from './types'
 import { useAuth } from './contexts/AuthContext'
 import { useToast } from './hooks/useToast'
 import { ToastContainer } from './components/ui/Toast'
-import Login from './components/Login'
 import Dashboard from './components/Dashboard'
 import AddInvestment from './components/AddInvestment'
 import InvestmentList from './components/InvestmentList'
@@ -27,8 +26,8 @@ type ResearchSubTab = 'equity' | 'themes'
 
 function App() {
   const authContext = useAuth();
-  const { isAuthenticated, user, login, register, logout, loading } = authContext || {};
-  const { toasts, success, error: showError } = useToast();
+  const { user, logout } = authContext || {};
+  const { toasts, success } = useToast();
   const [showUserMenu, setShowUserMenu] = useState(false);
   
   // TEMPORARY: Skip login for debugging

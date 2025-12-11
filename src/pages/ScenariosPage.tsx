@@ -7,7 +7,7 @@
 import { useState, useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, Area, AreaChart, ReferenceLine,
+  Line, Area, AreaChart, ReferenceLine,
 } from 'recharts';
 import { AlertTriangle, TrendingDown, TrendingUp, Play, RefreshCw } from 'lucide-react';
 import { usePortfolio } from '../contexts/PortfolioContext';

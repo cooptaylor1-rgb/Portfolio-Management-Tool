@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { FileText, Plus, Search, Edit2, Trash2, Tag, Calendar, Star, StarOff, ChevronRight } from 'lucide-react';
+import { FileText, Plus, Search, Edit2, Trash2, Tag, Calendar, Star, StarOff } from 'lucide-react';
 import './pages.css';
 
 interface Note {

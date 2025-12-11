@@ -9,7 +9,7 @@
  */
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { api, Portfolio, Investment as ApiInvestment, CreateInvestmentData } from '../services/api';
+import { api, Portfolio, Investment as ApiInvestment } from '../services/api';
 import { realTimeMarket } from '../services/realTimeMarket';
 
 // Type conversion helpers
@@ -26,18 +26,6 @@ const typeToApi = (type: FrontendInvestmentType): ApiInvestmentType => {
     other: 'OTHER',
   };
   return map[type] || 'OTHER';
-};
-
-const typeFromApi = (type: ApiInvestmentType): FrontendInvestmentType => {
-  const map: Record<ApiInvestmentType, FrontendInvestmentType> = {
-    STOCK: 'stock',
-    ETF: 'etf',
-    BOND: 'bond',
-    CRYPTO: 'crypto',
-    MUTUAL_FUND: 'mutual_fund',
-    OTHER: 'other',
-  };
-  return map[type] || 'other';
 };
 
 // Frontend-friendly types

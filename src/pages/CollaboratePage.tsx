@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { Users, Share2, Link2, UserPlus, MessageSquare, Clock, Check, X, Eye, Edit2, Shield } from 'lucide-react';
+import { Users, Share2, Link2, UserPlus, Clock, X, Eye, Edit2, Shield } from 'lucide-react';
 import './pages.css';
 
 interface TeamMember {

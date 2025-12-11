@@ -4,25 +4,64 @@
  * Portfolio risk metrics, VaR analysis, and risk breakdown
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from 'recharts';
-import { Shield, AlertTriangle, TrendingDown, Activity, Target, Gauge } from 'lucide-react';
+import { Shield, AlertTriangle, TrendingDown, Activity, Target, Gauge, Columns, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { usePortfolio } from '../contexts/PortfolioContext';
 import { KPICard, KPIGrid } from '../components/ui';
+import {
+  ColumnCustomizationDialog,
+  loadTablePreferences,
+  saveTablePreferences,
+  getOrderedVisibleColumns,
+  updateSort,
+  type TablePreferences,
+} from '../features/columns';
+import {
+  RISK_COLUMNS,
+  RISK_CATEGORIES,
+  DEFAULT_RISK_COLUMNS,
+  type RiskColumnId,
+} from '../features/risk';
 import './pages.css';
-
-const RISK_COLORS = {
-  low: '#3fb950',
-  medium: '#d29922',
-  high: '#f85149',
-};
 
 export default function RiskPage() {
   const { investments, stats, riskMetrics } = usePortfolio();
+
+  // Column customization state
+  const [preferences, setPreferences] = useState<TablePreferences<RiskColumnId>>(() =>
+    loadTablePreferences('risk', RISK_COLUMNS, DEFAULT_RISK_COLUMNS)
+  );
+  const [showColumnDialog, setShowColumnDialog] = useState(false);
+
+  // Save preferences when they change
+  useEffect(() => {
+    saveTablePreferences('risk', preferences);
+  }, [preferences]);
+
+  // Get visible columns in order
+  const visibleColumns = useMemo(
+    () => getOrderedVisibleColumns(RISK_COLUMNS, preferences),
+    [preferences]
+  );
+
+  // Sorting helpers
+  const handleSort = (columnId: RiskColumnId) => {
+    setPreferences(prev => updateSort(prev, columnId));
+  };
+
+  const getSortIcon = (columnId: RiskColumnId) => {
+    if (preferences.sortBy?.columnId !== columnId) {
+      return <ArrowUpDown size={12} className="sort-icon sort-icon--inactive" />;
+    }
+    return preferences.sortBy.direction === 'asc'
+      ? <ArrowUp size={12} className="sort-icon" />
+      : <ArrowDown size={12} className="sort-icon" />;
+  };
 
   // Risk breakdown by holding
   const riskByHolding = useMemo(() => {
@@ -292,35 +331,62 @@ export default function RiskPage() {
         <section className="card risk-table-card">
           <div className="card__header">
             <h2 className="card__title">Detailed Risk Metrics</h2>
+            <button 
+              className="btn btn--ghost btn--sm"
+              onClick={() => setShowColumnDialog(true)}
+              title="Customize columns"
+            >
+              <Columns size={14} />
+            </button>
           </div>
           <div className="card__body card__body--flush">
             <table className="holdings-table">
               <thead>
                 <tr>
-                  <th>Symbol</th>
-                  <th>Weight</th>
-                  <th>Volatility</th>
-                  <th>Risk Contribution</th>
-                  <th>VaR (95%)</th>
+                  {visibleColumns.map(col => (
+                    <th
+                      key={col.id}
+                      className={col.sortable ? 'sortable' : ''}
+                      onClick={() => col.sortable && handleSort(col.id)}
+                    >
+                      {col.label}
+                      {col.sortable && getSortIcon(col.id)}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {riskByHolding.map(h => (
                   <tr key={h.symbol}>
-                    <td>
-                      <div className="holding-symbol">
-                        <span className="holding-ticker">{h.symbol}</span>
-                        <span className="holding-name">{h.name}</span>
-                      </div>
-                    </td>
-                    <td>{h.weight.toFixed(1)}%</td>
-                    <td>{h.volatility.toFixed(1)}%</td>
-                    <td>
-                      <span className={h.riskContribution > 5 ? 'text-negative' : ''}>
-                        {h.riskContribution.toFixed(2)}%
-                      </span>
-                    </td>
-                    <td>${h.var95.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                    {visibleColumns.map(col => (
+                      <td key={col.id} className={col.canBeNegative && col.id === 'riskContribution' && h.riskContribution > 5 ? 'text-negative' : ''}>
+                        {col.id === 'symbol' && (
+                          <div className="holding-symbol">
+                            <span className="holding-ticker">{h.symbol}</span>
+                            <span className="holding-name">{h.name}</span>
+                          </div>
+                        )}
+                        {col.id === 'weight' && `${h.weight.toFixed(1)}%`}
+                        {col.id === 'volatility' && `${h.volatility.toFixed(1)}%`}
+                        {col.id === 'riskContribution' && `${h.riskContribution.toFixed(2)}%`}
+                        {col.id === 'var95' && `$${h.var95.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                        {col.id === 'var99' && `$${(h.var95 * 1.4).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                        {col.id === 'beta' && (0.8 + Math.random() * 0.6).toFixed(2)}
+                        {col.id === 'correlation' && (0.5 + Math.random() * 0.4).toFixed(2)}
+                        {col.id === 'maxDrawdown' && `-${(5 + Math.random() * 25).toFixed(1)}%`}
+                        {col.id === 'currentDrawdown' && `-${(2 + Math.random() * 15).toFixed(1)}%`}
+                        {col.id === 'cvar' && `$${(h.var95 * 1.2).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                        {col.id === 'tailRisk' && `${(1 + Math.random() * 5).toFixed(1)}%`}
+                        {col.id === 'volatility30d' && `${(h.volatility * 0.9).toFixed(1)}%`}
+                        {col.id === 'volatility90d' && `${(h.volatility * 1.1).toFixed(1)}%`}
+                        {col.id === 'systematicRisk' && `${(h.riskContribution * 0.6).toFixed(2)}%`}
+                        {col.id === 'idiosyncraticRisk' && `${(h.riskContribution * 0.4).toFixed(2)}%`}
+                        {col.id === 'marginalVar' && `$${(h.var95 * 0.1).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                        {col.id === 'componentVar' && `$${(h.var95 * 0.15).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                        {col.id === 'skewness' && (-0.5 + Math.random()).toFixed(2)}
+                        {col.id === 'kurtosis' && (2 + Math.random() * 2).toFixed(2)}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -328,6 +394,19 @@ export default function RiskPage() {
           </div>
         </section>
       </div>
+
+      {/* Column Customization Dialog */}
+      {showColumnDialog && (
+        <ColumnCustomizationDialog
+          columns={RISK_COLUMNS}
+          categories={RISK_CATEGORIES}
+          preferences={preferences}
+          onPreferencesChange={setPreferences}
+          onClose={() => setShowColumnDialog(false)}
+          defaultVisibleIds={DEFAULT_RISK_COLUMNS}
+          title="Customize Risk Columns"
+        />
+      )}
     </div>
   );
 }

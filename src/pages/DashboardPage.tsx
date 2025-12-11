@@ -12,13 +12,10 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  DollarSign,
   ArrowUpRight,
   ArrowDownRight,
   Bell,
   ChevronRight,
-  TrendingUp,
-  TrendingDown,
   Coins,
   Activity,
   RefreshCw,
@@ -62,7 +59,6 @@ export default function DashboardPage() {
     return Array.from({ length: 7 }, (_, i) => {
       const month = new Date();
       month.setMonth(month.getMonth() - (6 - i));
-      const progress = i / 6;
       const value = baseValue * (1 + growthRate * i * 1.1);
       const benchmark = baseValue * (1 + growthRate * i * 0.85);
       

@@ -4,14 +4,28 @@
  * Detailed performance analytics with charts, benchmarking, and returns analysis
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
-  LineChart, Line, AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  Line, AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { Calendar, TrendingUp, TrendingDown, Target, Award } from 'lucide-react';
+import { TrendingUp, TrendingDown, Target, Award, Columns, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { usePortfolio } from '../contexts/PortfolioContext';
 import { KPICard, KPIGrid } from '../components/ui';
+import {
+  ColumnCustomizationDialog,
+  loadTablePreferences,
+  saveTablePreferences,
+  getOrderedVisibleColumns,
+  updateSort,
+  TablePreferences,
+} from '../features/columns';
+import {
+  PerformanceColumnId,
+  PERFORMANCE_COLUMNS,
+  PERFORMANCE_CATEGORIES,
+  DEFAULT_PERFORMANCE_COLUMNS,
+} from '../features/performance';
 import './pages.css';
 
 // Generate mock historical data
@@ -47,6 +61,38 @@ type TimeRange = '1M' | '3M' | '6M' | 'YTD' | '1Y' | 'ALL';
 export default function PerformancePage() {
   const { investments, stats } = usePortfolio();
   const [timeRange, setTimeRange] = useState<TimeRange>('1Y');
+  const [showColumnDialog, setShowColumnDialog] = useState(false);
+  
+  // Column preferences
+  const [preferences, setPreferences] = useState<TablePreferences<PerformanceColumnId>>(() =>
+    loadTablePreferences('performance', PERFORMANCE_COLUMNS, DEFAULT_PERFORMANCE_COLUMNS)
+  );
+
+  // Save preferences when they change
+  useEffect(() => {
+    saveTablePreferences('performance', preferences);
+  }, [preferences]);
+
+  // Get visible columns in order
+  const visibleColumns = useMemo(
+    () => getOrderedVisibleColumns(PERFORMANCE_COLUMNS, preferences),
+    [preferences]
+  );
+
+  // Handle sort
+  const handleSort = useCallback((columnId: PerformanceColumnId) => {
+    setPreferences(prev => updateSort(prev, columnId));
+  }, []);
+
+  // Get sort icon
+  const getSortIcon = (columnId: PerformanceColumnId) => {
+    if (preferences.sortBy?.columnId !== columnId) {
+      return <ArrowUpDown size={12} className="sort-icon--inactive" />;
+    }
+    return preferences.sortBy.direction === 'asc' 
+      ? <ArrowUp size={12} className="sort-icon--active" />
+      : <ArrowDown size={12} className="sort-icon--active" />;
+  };
 
   // Generate historical data based on time range
   const daysMap: Record<TimeRange, number> = {
@@ -284,31 +330,49 @@ export default function PerformancePage() {
         <section className="card">
           <div className="card__header">
             <h2 className="card__title">Top Performers</h2>
+            <button 
+              className="btn btn--ghost btn--sm"
+              onClick={() => setShowColumnDialog(true)}
+              title="Customize columns"
+            >
+              <Columns size={14} />
+            </button>
           </div>
           <div className="card__body card__body--flush">
             <table className="holdings-table">
               <thead>
                 <tr>
-                  <th>Symbol</th>
-                  <th>Return</th>
-                  <th>Contribution</th>
+                  {visibleColumns.map(col => (
+                    <th
+                      key={col.id}
+                      className={col.sortable ? 'sortable' : ''}
+                      onClick={() => col.sortable && handleSort(col.id)}
+                    >
+                      {col.label}
+                      {col.sortable && getSortIcon(col.id)}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {holdingPerformance.slice(0, 5).map(h => (
                   <tr key={h.symbol}>
-                    <td>
-                      <div className="holding-symbol">
-                        <span className="holding-ticker">{h.symbol}</span>
-                        <span className="holding-name">{h.name}</span>
-                      </div>
-                    </td>
-                    <td className={h.return >= 0 ? 'text-positive' : 'text-negative'}>
-                      {h.return >= 0 ? '+' : ''}{h.return.toFixed(2)}%
-                    </td>
-                    <td className={h.contribution >= 0 ? 'text-positive' : 'text-negative'}>
-                      {h.contribution >= 0 ? '+' : ''}{h.contribution.toFixed(2)}%
-                    </td>
+                    {visibleColumns.map(col => (
+                      <td key={col.id} className={col.canBeNegative ? (
+                        col.id === 'totalReturn' ? (h.return >= 0 ? 'text-positive' : 'text-negative') :
+                        col.id === 'contribution' ? (h.contribution >= 0 ? 'text-positive' : 'text-negative') : ''
+                      ) : ''}>
+                        {col.id === 'symbol' && (
+                          <div className="holding-symbol">
+                            <span className="holding-ticker">{h.symbol}</span>
+                            <span className="holding-name">{h.name}</span>
+                          </div>
+                        )}
+                        {col.id === 'totalReturn' && `${h.return >= 0 ? '+' : ''}${h.return.toFixed(2)}%`}
+                        {col.id === 'contribution' && `${h.contribution >= 0 ? '+' : ''}${h.contribution.toFixed(2)}%`}
+                        {col.id === 'ytdReturn' && `${h.return >= 0 ? '+' : ''}${(h.return * 0.8).toFixed(2)}%`}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -325,26 +389,37 @@ export default function PerformancePage() {
             <table className="holdings-table">
               <thead>
                 <tr>
-                  <th>Symbol</th>
-                  <th>Return</th>
-                  <th>Contribution</th>
+                  {visibleColumns.map(col => (
+                    <th
+                      key={col.id}
+                      className={col.sortable ? 'sortable' : ''}
+                      onClick={() => col.sortable && handleSort(col.id)}
+                    >
+                      {col.label}
+                      {col.sortable && getSortIcon(col.id)}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {holdingPerformance.slice(-5).reverse().map(h => (
                   <tr key={h.symbol}>
-                    <td>
-                      <div className="holding-symbol">
-                        <span className="holding-ticker">{h.symbol}</span>
-                        <span className="holding-name">{h.name}</span>
-                      </div>
-                    </td>
-                    <td className={h.return >= 0 ? 'text-positive' : 'text-negative'}>
-                      {h.return >= 0 ? '+' : ''}{h.return.toFixed(2)}%
-                    </td>
-                    <td className={h.contribution >= 0 ? 'text-positive' : 'text-negative'}>
-                      {h.contribution >= 0 ? '+' : ''}{h.contribution.toFixed(2)}%
-                    </td>
+                    {visibleColumns.map(col => (
+                      <td key={col.id} className={col.canBeNegative ? (
+                        col.id === 'totalReturn' ? (h.return >= 0 ? 'text-positive' : 'text-negative') :
+                        col.id === 'contribution' ? (h.contribution >= 0 ? 'text-positive' : 'text-negative') : ''
+                      ) : ''}>
+                        {col.id === 'symbol' && (
+                          <div className="holding-symbol">
+                            <span className="holding-ticker">{h.symbol}</span>
+                            <span className="holding-name">{h.name}</span>
+                          </div>
+                        )}
+                        {col.id === 'totalReturn' && `${h.return >= 0 ? '+' : ''}${h.return.toFixed(2)}%`}
+                        {col.id === 'contribution' && `${h.contribution >= 0 ? '+' : ''}${h.contribution.toFixed(2)}%`}
+                        {col.id === 'ytdReturn' && `${h.return >= 0 ? '+' : ''}${(h.return * 0.8).toFixed(2)}%`}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -352,6 +427,19 @@ export default function PerformancePage() {
           </div>
         </section>
       </div>
+
+      {/* Column Customization Dialog */}
+      {showColumnDialog && (
+        <ColumnCustomizationDialog
+          columns={PERFORMANCE_COLUMNS}
+          categories={PERFORMANCE_CATEGORIES}
+          preferences={preferences}
+          onPreferencesChange={setPreferences}
+          onClose={() => setShowColumnDialog(false)}
+          defaultVisibleIds={DEFAULT_PERFORMANCE_COLUMNS}
+          title="Customize Performance Columns"
+        />
+      )}
     </div>
   );
 }

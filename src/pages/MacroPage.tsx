@@ -5,8 +5,8 @@
  */
 
 import { useState } from 'react';
-import { Globe, TrendingUp, TrendingDown, Minus, RefreshCw, Calendar, Info } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { TrendingUp, TrendingDown, Minus, RefreshCw, Calendar, Info } from 'lucide-react';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import './pages.css';
 
 interface Indicator {

@@ -4,8 +4,8 @@
  * In-depth company research and analysis tools
  */
 
-import { useState, useMemo } from 'react';
-import { Search, ExternalLink, Star, TrendingUp, TrendingDown, Building2, DollarSign, BarChart3, Users } from 'lucide-react';
+import { useState } from 'react';
+import { Search, ExternalLink, TrendingUp, TrendingDown, Building2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './pages.css';
 
@@ -82,6 +82,156 @@ const SAMPLE_COMPANIES: CompanyData[] = [
       { quarter: 'Q3 23', actual: 2.45, estimate: 2.23 },
     ],
   },
+  {
+    symbol: 'NVDA',
+    name: 'NVIDIA Corporation',
+    sector: 'Technology',
+    price: 875.35,
+    change: 12.45,
+    changePercent: 1.44,
+    marketCap: 2160000000000,
+    pe: 65.2,
+    forwardPe: 42.8,
+    eps: 13.42,
+    dividend: 0.04,
+    beta: 1.72,
+    high52: 974.00,
+    low52: 222.97,
+    avgVolume: 42000000,
+    description: 'NVIDIA Corporation provides graphics, computing and networking solutions worldwide. The company operates through Graphics and Compute & Networking segments.',
+    analysts: { buy: 42, hold: 6, sell: 1, target: 950 },
+    earnings: [
+      { quarter: 'Q4 24', actual: 5.16, estimate: 4.60 },
+      { quarter: 'Q3 24', actual: 4.02, estimate: 3.37 },
+      { quarter: 'Q2 24', actual: 2.70, estimate: 2.09 },
+      { quarter: 'Q1 24', actual: 1.09, estimate: 0.92 },
+    ],
+  },
+  {
+    symbol: 'GOOGL',
+    name: 'Alphabet Inc.',
+    sector: 'Technology',
+    price: 142.85,
+    change: 1.92,
+    changePercent: 1.36,
+    marketCap: 1780000000000,
+    pe: 24.6,
+    forwardPe: 21.3,
+    eps: 5.80,
+    dividend: 0.20,
+    beta: 1.05,
+    high52: 155.20,
+    low52: 102.21,
+    avgVolume: 28000000,
+    description: 'Alphabet Inc. provides online advertising services in the United States, Europe, the Middle East, Africa, the Asia-Pacific, Canada, and Latin America.',
+    analysts: { buy: 38, hold: 7, sell: 0, target: 165 },
+    earnings: [
+      { quarter: 'Q1 24', actual: 1.89, estimate: 1.51 },
+      { quarter: 'Q4 23', actual: 1.64, estimate: 1.59 },
+      { quarter: 'Q3 23', actual: 1.55, estimate: 1.45 },
+      { quarter: 'Q2 23', actual: 1.44, estimate: 1.34 },
+    ],
+  },
+  {
+    symbol: 'AMZN',
+    name: 'Amazon.com Inc.',
+    sector: 'Consumer Cyclical',
+    price: 186.40,
+    change: 3.15,
+    changePercent: 1.72,
+    marketCap: 1950000000000,
+    pe: 58.2,
+    forwardPe: 38.5,
+    eps: 3.20,
+    dividend: 0,
+    beta: 1.16,
+    high52: 191.70,
+    low52: 118.35,
+    avgVolume: 45000000,
+    description: 'Amazon.com, Inc. engages in the retail sale of consumer products and subscriptions through online and physical stores in North America and internationally.',
+    analysts: { buy: 45, hold: 4, sell: 0, target: 210 },
+    earnings: [
+      { quarter: 'Q1 24', actual: 0.98, estimate: 0.83 },
+      { quarter: 'Q4 23', actual: 1.00, estimate: 0.80 },
+      { quarter: 'Q3 23', actual: 0.94, estimate: 0.58 },
+      { quarter: 'Q2 23', actual: 0.65, estimate: 0.35 },
+    ],
+  },
+  {
+    symbol: 'META',
+    name: 'Meta Platforms Inc.',
+    sector: 'Technology',
+    price: 505.75,
+    change: 8.30,
+    changePercent: 1.67,
+    marketCap: 1290000000000,
+    pe: 28.4,
+    forwardPe: 22.8,
+    eps: 17.81,
+    dividend: 0.50,
+    beta: 1.24,
+    high52: 531.49,
+    low52: 274.38,
+    avgVolume: 15000000,
+    description: 'Meta Platforms, Inc. develops products that enable people to connect and share with friends and family through mobile devices, personal computers, and other surfaces worldwide.',
+    analysts: { buy: 40, hold: 8, sell: 1, target: 550 },
+    earnings: [
+      { quarter: 'Q1 24', actual: 4.71, estimate: 4.32 },
+      { quarter: 'Q4 23', actual: 5.33, estimate: 4.96 },
+      { quarter: 'Q3 23', actual: 4.39, estimate: 3.63 },
+      { quarter: 'Q2 23', actual: 2.98, estimate: 2.91 },
+    ],
+  },
+  {
+    symbol: 'TSLA',
+    name: 'Tesla Inc.',
+    sector: 'Consumer Cyclical',
+    price: 245.80,
+    change: -4.20,
+    changePercent: -1.68,
+    marketCap: 782000000000,
+    pe: 72.5,
+    forwardPe: 58.2,
+    eps: 3.39,
+    dividend: 0,
+    beta: 2.08,
+    high52: 299.29,
+    low52: 152.37,
+    avgVolume: 98000000,
+    description: 'Tesla, Inc. designs, develops, manufactures, leases, and sells electric vehicles, and energy generation and storage systems worldwide.',
+    analysts: { buy: 18, hold: 22, sell: 8, target: 225 },
+    earnings: [
+      { quarter: 'Q1 24', actual: 0.45, estimate: 0.52 },
+      { quarter: 'Q4 23', actual: 0.71, estimate: 0.74 },
+      { quarter: 'Q3 23', actual: 0.66, estimate: 0.73 },
+      { quarter: 'Q2 23', actual: 0.91, estimate: 0.82 },
+    ],
+  },
+  {
+    symbol: 'JPM',
+    name: 'JPMorgan Chase & Co.',
+    sector: 'Financial Services',
+    price: 198.50,
+    change: 2.80,
+    changePercent: 1.43,
+    marketCap: 570000000000,
+    pe: 11.8,
+    forwardPe: 10.5,
+    eps: 16.82,
+    dividend: 4.60,
+    beta: 1.12,
+    high52: 205.88,
+    low52: 135.19,
+    avgVolume: 9500000,
+    description: 'JPMorgan Chase & Co. operates as a financial services company worldwide. It operates through four segments: Consumer & Community Banking, Corporate & Investment Bank, Commercial Banking, and Asset & Wealth Management.',
+    analysts: { buy: 15, hold: 10, sell: 2, target: 215 },
+    earnings: [
+      { quarter: 'Q1 24', actual: 4.44, estimate: 4.17 },
+      { quarter: 'Q4 23', actual: 3.97, estimate: 3.65 },
+      { quarter: 'Q3 23', actual: 4.33, estimate: 3.96 },
+      { quarter: 'Q2 23', actual: 4.75, estimate: 4.10 },
+    ],
+  },
 ];
 
 export default function EquityResearchPage() {
@@ -89,10 +239,30 @@ export default function EquityResearchPage() {
   const [selectedCompany, setSelectedCompany] = useState<CompanyData | null>(SAMPLE_COMPANIES[0]);
   const [recentSearches] = useState(['NVDA', 'GOOGL', 'AMZN', 'META']);
 
-  const handleSearch = (symbol: string) => {
-    const company = SAMPLE_COMPANIES.find(c => c.symbol.toLowerCase() === symbol.toLowerCase());
+  const handleSearch = (term: string) => {
+    if (!term.trim()) return;
+    
+    const searchLower = term.toLowerCase().trim();
+    
+    // First try exact symbol match
+    let company = SAMPLE_COMPANIES.find(c => c.symbol.toLowerCase() === searchLower);
+    
+    // If not found, try partial symbol match
+    if (!company) {
+      company = SAMPLE_COMPANIES.find(c => c.symbol.toLowerCase().includes(searchLower));
+    }
+    
+    // If still not found, try company name match
+    if (!company) {
+      company = SAMPLE_COMPANIES.find(c => c.name.toLowerCase().includes(searchLower));
+    }
+    
     if (company) {
       setSelectedCompany(company);
+      setSearchTerm(''); // Clear search after finding
+    } else {
+      // Could show a "not found" message here
+      alert(`Company "${term}" not found. Try: AAPL, MSFT, NVDA, GOOGL, AMZN, META, TSLA, or JPM`);
     }
   };
 

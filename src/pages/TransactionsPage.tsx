@@ -4,26 +4,86 @@
  * Complete transaction history with filtering, sorting, and CRUD operations
  */
 
-import { useState, useMemo } from 'react';
-import { Plus, Download, Filter, ArrowUpRight, ArrowDownRight, Coins, Search, Split } from 'lucide-react';
-import { usePortfolio } from '../contexts/PortfolioContext';
-import { DataTable } from '../components/ui';
-import { ColumnDef } from '@tanstack/react-table';
-import type { Transaction } from '../types';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import {
+  Plus,
+  Download,
+  Filter,
+  ArrowUpRight,
+  ArrowDownRight,
+  Coins,
+  Search,
+  Split,
+  Columns,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  X,
+} from 'lucide-react';
+import { usePortfolio, type Transaction as PortfolioTransaction } from '../contexts/PortfolioContext';
+import {
+  ColumnCustomizationDialog,
+  loadTablePreferences,
+  saveTablePreferences,
+  getOrderedVisibleColumns,
+  updateSort,
+  TablePreferences,
+} from '../features/columns';
+import {
+  TransactionColumnId,
+  TRANSACTION_COLUMNS,
+  TRANSACTION_CATEGORIES,
+  DEFAULT_TRANSACTION_COLUMNS,
+  type TransactionFilters,
+  type TransactionRow,
+  type TransactionType,
+  applyTransactionFilters,
+  computeTransactionSummary,
+  getTransactionTypeLabel,
+} from '../features/transactions';
+import { KPICard, KPIGrid } from '../components/ui/KPICard';
 import './pages.css';
 
-const TYPE_CONFIG: Record<string, { icon: typeof ArrowUpRight; color: string; label: string }> = {
+const TYPE_CONFIG: Record<TransactionType, { icon: typeof ArrowUpRight; color: string; label: string }> = {
   buy: { icon: ArrowUpRight, color: '#3fb950', label: 'Buy' },
   sell: { icon: ArrowDownRight, color: '#f85149', label: 'Sell' },
   dividend: { icon: Coins, color: '#58a6ff', label: 'Dividend' },
   split: { icon: Split, color: '#a371f7', label: 'Split' },
+  interest: { icon: Coins, color: '#58a6ff', label: 'Interest' },
+  fee: { icon: ArrowDownRight, color: '#f85149', label: 'Fee' },
+  transfer: { icon: ArrowUpRight, color: '#58a6ff', label: 'Transfer' },
 };
 
 export default function TransactionsPage() {
   const { transactions, investments, addTransaction } = usePortfolio();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showColumnDialog, setShowColumnDialog] = useState(false);
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
+
+  const [filters, setFilters] = useState<TransactionFilters>({
+    text: '',
+    types: [],
+    dateFrom: undefined,
+    dateTo: undefined,
+    minAbsNotional: undefined,
+    maxAbsNotional: undefined,
+  });
+  
+  // Column preferences
+  const [preferences, setPreferences] = useState<TablePreferences<TransactionColumnId>>(() =>
+    loadTablePreferences('transactions', TRANSACTION_COLUMNS, DEFAULT_TRANSACTION_COLUMNS)
+  );
+
+  // Save preferences when they change
+  useEffect(() => {
+    saveTablePreferences('transactions', preferences);
+  }, [preferences]);
+
+  // Get visible columns in order
+  const visibleColumns = useMemo(
+    () => getOrderedVisibleColumns(TRANSACTION_COLUMNS, preferences),
+    [preferences]
+  );
 
   // Create lookup for investment names
   const investmentLookup = useMemo(() => {
@@ -34,47 +94,107 @@ export default function TransactionsPage() {
     return lookup;
   }, [investments]);
 
-  // Filter and enrich transactions
-  const filteredTransactions = useMemo(() => {
-    return transactions
-      .map(t => ({
-        ...t,
-        investmentName: investmentLookup[t.investmentId]?.name || 'Unknown',
-        symbol: investmentLookup[t.investmentId]?.symbol || '???',
-        total: t.quantity * t.price,
-      }))
-      .filter(t => {
-        const matchesSearch = 
-          t.investmentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          t.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          t.notes?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesType = typeFilter === 'all' || t.type === typeFilter;
-        return matchesSearch && matchesType;
-      })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, investmentLookup, searchTerm, typeFilter]);
+  const allRows = useMemo<TransactionRow[]>(() => {
+    return transactions.map(t => {
+      const inv = investmentLookup[t.investmentId];
+      const symbol = inv?.symbol || '???';
+      const name = inv?.name || 'Unknown';
 
-  // Summary stats
-  const summaryStats = useMemo(() => {
-    const buys = filteredTransactions.filter(t => t.type === 'buy');
-    const sells = filteredTransactions.filter(t => t.type === 'sell');
-    const dividends = filteredTransactions.filter(t => t.type === 'dividend');
-    
-    return {
-      totalTransactions: filteredTransactions.length,
-      totalBuys: buys.reduce((sum, t) => sum + t.total, 0),
-      totalSells: sells.reduce((sum, t) => sum + t.total, 0),
-      totalDividends: dividends.reduce((sum, t) => sum + t.total, 0),
+      const notional = (t.quantity ?? 0) * (t.price ?? 0);
+      const cashImpact =
+        t.type === 'buy'
+          ? -notional
+          : t.type === 'sell'
+            ? notional
+            : t.type === 'dividend'
+              ? notional
+              : 0;
+
+      return {
+        id: t.id,
+        date: t.date,
+        type: t.type as TransactionType,
+        symbol,
+        name,
+        quantity: t.quantity,
+        price: t.price,
+        notional,
+        cashImpact,
+        notes: t.notes,
+      };
+    });
+  }, [transactions, investmentLookup]);
+
+  const filteredRows = useMemo(() => applyTransactionFilters(allRows, filters), [allRows, filters]);
+
+  // Sort transactions
+  const sortedRows = useMemo(() => {
+    const rows = [...filteredRows];
+
+    const getSortValue = (row: TransactionRow, columnId: TransactionColumnId): string | number => {
+      switch (columnId) {
+        case 'date':
+          return new Date(row.date).getTime();
+        case 'type':
+          return getTransactionTypeLabel(row.type);
+        case 'symbol':
+          return row.symbol;
+        case 'name':
+          return row.name ?? '';
+        case 'quantity':
+          return row.quantity ?? 0;
+        case 'price':
+          return row.price ?? 0;
+        case 'total':
+        case 'netAmount':
+          return row.notional;
+        case 'notes':
+          return row.notes ?? '';
+        default:
+          return '';
+      }
     };
-  }, [filteredTransactions]);
 
-  const columns: ColumnDef<typeof filteredTransactions[0]>[] = [
-    {
-      id: 'date',
-      header: 'Date',
-      accessorKey: 'date',
-      cell: (info) => {
-        const row = info.row.original;
+    if (!preferences.sortBy) {
+      // Default sort by date descending
+      return rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+
+    const { columnId, direction } = preferences.sortBy;
+    return rows.sort((a, b) => {
+      const aVal = getSortValue(a, columnId);
+      const bVal = getSortValue(b, columnId);
+
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return direction === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+
+      const aStr = String(aVal || '');
+      const bStr = String(bVal || '');
+      return direction === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
+    });
+  }, [filteredRows, preferences.sortBy]);
+
+  const summary = useMemo(() => computeTransactionSummary(filteredRows), [filteredRows]);
+
+  // Handle sort click
+  const handleSort = useCallback((columnId: TransactionColumnId) => {
+    setPreferences(prev => updateSort(prev, columnId));
+  }, []);
+
+  // Get sort icon
+  const getSortIcon = (columnId: TransactionColumnId) => {
+    if (preferences.sortBy?.columnId !== columnId) {
+      return <ArrowUpDown size={12} className="sort-icon--inactive" />;
+    }
+    return preferences.sortBy.direction === 'asc' 
+      ? <ArrowUp size={12} className="sort-icon--active" />
+      : <ArrowDown size={12} className="sort-icon--active" />;
+  };
+
+  const renderCell = (row: TransactionRow, columnId: TransactionColumnId) => {
+    switch (columnId) {
+      case 'date':
         return (
           <span className="transaction-date">
             {new Date(row.date).toLocaleDateString('en-US', {
@@ -84,15 +204,9 @@ export default function TransactionsPage() {
             })}
           </span>
         );
-      },
-    },
-    {
-      id: 'type',
-      header: 'Type',
-      accessorKey: 'type',
-      cell: (info) => {
-        const row = info.row.original;
-        const config = TYPE_CONFIG[row.type];
+      
+      case 'type': {
+        const config = TYPE_CONFIG[row.type] || { icon: ArrowUpDown, color: 'var(--text-tertiary)', label: row.type };
         const Icon = config.icon;
         return (
           <span className="transaction-type" style={{ color: config.color }}>
@@ -100,81 +214,92 @@ export default function TransactionsPage() {
             {config.label}
           </span>
         );
-      },
-    },
-    {
-      id: 'investment',
-      header: 'Investment',
-      accessorKey: 'symbol',
-      cell: (info) => {
-        const row = info.row.original;
+      }
+      
+      case 'symbol':
         return (
           <div className="transaction-investment">
             <span className="transaction-symbol">{row.symbol}</span>
-            <span className="transaction-name">{row.investmentName}</span>
+            <span className="transaction-name">{row.name}</span>
           </div>
         );
-      },
-    },
-    {
-      id: 'quantity',
-      header: 'Quantity',
-      accessorKey: 'quantity',
-      cell: (info) => {
-        const row = info.row.original;
+      
+      case 'name':
+        return row.name;
+      
+      case 'quantity':
         return row.quantity?.toLocaleString(undefined, { maximumFractionDigits: 4 }) ?? '-';
-      },
-    },
-    {
-      id: 'price',
-      header: 'Price',
-      accessorKey: 'price',
-      cell: (info) => {
-        const row = info.row.original;
-        return row.price != null ? `$${row.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-';
-      },
-    },
-    {
-      id: 'total',
-      header: 'Total',
-      accessorKey: 'total',
-      cell: (info) => {
-        const row = info.row.original;
+      
+      case 'price':
+        return row.price != null 
+          ? `$${row.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+          : '-';
+      
+      case 'total':
+      case 'netAmount': {
+        const isSell = row.type === 'sell';
+        const isBuy = row.type === 'buy';
+        const isIncome = row.type === 'dividend' || row.type === 'interest';
+        const sign = isSell || isIncome ? '+' : isBuy ? '-' : '';
+        const className = isSell
+          ? 'text-positive'
+          : isBuy
+            ? 'text-negative'
+            : isIncome
+              ? 'text-highlight'
+              : '';
+
         return (
-          <span className={row.type === 'sell' ? 'text-positive' : row.type === 'buy' ? 'text-negative' : 'text-highlight'}>
-            {row.type === 'sell' ? '+' : row.type === 'buy' ? '-' : '+'}
-            ${row.total?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '0.00'}
+          <span className={className}>
+            {sign}${Math.abs(row.notional).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         );
-      },
-    },
-    {
-      id: 'notes',
-      header: 'Notes',
-      accessorKey: 'notes',
-      cell: (info) => {
-        const row = info.row.original;
+      }
+      
+      case 'fees':
+        // Fees not currently tracked in transaction type
+        return '-';
+      
+      case 'notes':
         return (
           <span className="transaction-notes" title={row.notes}>
             {row.notes || '-'}
           </span>
         );
-      },
-    },
-  ];
+      
+      default:
+        return '-';
+    }
+  };
 
   const exportToCSV = () => {
-    const headers = ['Date', 'Type', 'Symbol', 'Name', 'Quantity', 'Price', 'Total', 'Notes'];
-    const rows = filteredTransactions.map(t => [
-      t.date,
-      t.type,
-      t.symbol,
-      t.investmentName,
-      t.quantity,
-      t.price,
-      t.total,
-      t.notes || '',
-    ]);
+    const headers = visibleColumns.map(c => c.label);
+
+    const getExportValue = (row: TransactionRow, columnId: TransactionColumnId): string => {
+      switch (columnId) {
+        case 'date':
+          return row.date;
+        case 'type':
+          return getTransactionTypeLabel(row.type);
+        case 'symbol':
+          return row.symbol;
+        case 'name':
+          return row.name ?? '';
+        case 'quantity':
+          return String(row.quantity ?? '');
+        case 'price':
+          return String(row.price ?? '');
+        case 'total':
+        case 'netAmount':
+          return String(row.notional ?? '');
+        case 'notes':
+          return row.notes ?? '';
+        default:
+          return '';
+      }
+    };
+
+    const rows = sortedRows.map(row => visibleColumns.map(col => getExportValue(row, col.id)));
     
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -192,10 +317,14 @@ export default function TransactionsPage() {
         <div className="page__title-group">
           <h1 className="page__title">Transactions</h1>
           <p className="page__subtitle">
-            {filteredTransactions.length} transactions
+            {summary.count} in view • {allRows.length} total
           </p>
         </div>
         <div className="page__actions">
+          <button className="btn btn--secondary" onClick={() => setShowColumnDialog(true)}>
+            <Columns size={16} />
+            Columns
+          </button>
           <button className="btn" onClick={exportToCSV}>
             <Download size={16} />
             Export CSV
@@ -207,64 +336,279 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="transaction-summary">
-        <div className="summary-card">
-          <span className="summary-card__label">Total Bought</span>
-          <span className="summary-card__value text-negative">
-            ${summaryStats.totalBuys.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-          </span>
-        </div>
-        <div className="summary-card">
-          <span className="summary-card__label">Total Sold</span>
-          <span className="summary-card__value text-positive">
-            ${summaryStats.totalSells.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-          </span>
-        </div>
-        <div className="summary-card">
-          <span className="summary-card__label">Dividends Received</span>
-          <span className="summary-card__value text-highlight">
-            ${summaryStats.totalDividends.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-          </span>
-        </div>
+      <div className="page__section">
+        <KPIGrid columns={5}>
+          <KPICard label="In View" value={summary.count} format="number" />
+          <KPICard label="Bought" value={summary.totalBought} format="currency" variant="danger" />
+          <KPICard label="Sold" value={summary.totalSold} format="currency" variant="highlight" />
+          <KPICard label="Net Invested" value={summary.netInvested} format="currency" />
+          <KPICard label="Div/Int" value={summary.dividendsReceived} format="currency" variant="highlight" />
+        </KPIGrid>
       </div>
 
       {/* Filters */}
-      <div className="page__filters">
+      <div className="page__filters transactions-filters">
         <div className="search-input">
           <Search size={16} />
           <input
             type="text"
             placeholder="Search transactions..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
+            value={filters.text}
+            onChange={e => setFilters(prev => ({ ...prev, text: e.target.value }))}
           />
         </div>
         <div className="filter-group">
           <Filter size={16} />
-          <select
-            value={typeFilter}
-            onChange={e => setTypeFilter(e.target.value)}
-            className="form-select"
-          >
-            <option value="all">All Types</option>
-            <option value="buy">Buys Only</option>
-            <option value="sell">Sells Only</option>
-            <option value="dividend">Dividends Only</option>
-          </select>
+          <div className="transactions-filters__types" aria-label="Transaction type filters">
+            {(['buy', 'sell', 'dividend', 'split'] as TransactionType[]).map(type => {
+              const active = filters.types.includes(type);
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  className={`thesis-option ${active ? 'thesis-option--active' : ''}`}
+                  onClick={() =>
+                    setFilters(prev => ({
+                      ...prev,
+                      types: active ? prev.types.filter(t => t !== type) : [...prev.types, type],
+                    }))
+                  }
+                >
+                  {getTransactionTypeLabel(type)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="filter-group">
+          <span className="form-label" style={{ margin: 0 }}>From</span>
+          <input
+            type="date"
+            className="form-input"
+            value={filters.dateFrom ?? ''}
+            onChange={e => setFilters(prev => ({ ...prev, dateFrom: e.target.value || undefined }))}
+          />
+        </div>
+        <div className="filter-group">
+          <span className="form-label" style={{ margin: 0 }}>To</span>
+          <input
+            type="date"
+            className="form-input"
+            value={filters.dateTo ?? ''}
+            onChange={e => setFilters(prev => ({ ...prev, dateTo: e.target.value || undefined }))}
+          />
+        </div>
+        <div className="filter-group">
+          <span className="form-label" style={{ margin: 0 }}>Min</span>
+          <input
+            type="number"
+            className="form-input"
+            placeholder="0"
+            value={filters.minAbsNotional ?? ''}
+            onChange={e =>
+              setFilters(prev => ({
+                ...prev,
+                minAbsNotional: e.target.value === '' ? undefined : Number(e.target.value),
+              }))
+            }
+          />
+        </div>
+        <div className="filter-group">
+          <span className="form-label" style={{ margin: 0 }}>Max</span>
+          <input
+            type="number"
+            className="form-input"
+            placeholder=""
+            value={filters.maxAbsNotional ?? ''}
+            onChange={e =>
+              setFilters(prev => ({
+                ...prev,
+                maxAbsNotional: e.target.value === '' ? undefined : Number(e.target.value),
+              }))
+            }
+          />
         </div>
       </div>
 
-      {/* Transactions Table */}
-      <section className="card">
-        <div className="card__body card__body--flush">
-          <DataTable
-            data={filteredTransactions}
-            columns={columns}
-            pageSize={20}
-          />
+      {(filters.text ||
+        filters.types.length > 0 ||
+        filters.dateFrom ||
+        filters.dateTo ||
+        filters.minAbsNotional != null ||
+        filters.maxAbsNotional != null) && (
+        <div className="active-filters" style={{ marginBottom: 12 }}>
+          {filters.text && (
+            <span className="filter-chip">
+              Search: {filters.text}
+              <button onClick={() => setFilters(prev => ({ ...prev, text: '' }))} aria-label="Clear search">
+                <X size={12} />
+              </button>
+            </span>
+          )}
+          {filters.types.length > 0 && (
+            <span className="filter-chip">
+              Types: {filters.types.map(getTransactionTypeLabel).join(', ')}
+              <button onClick={() => setFilters(prev => ({ ...prev, types: [] }))} aria-label="Clear types">
+                <X size={12} />
+              </button>
+            </span>
+          )}
+          {(filters.dateFrom || filters.dateTo) && (
+            <span className="filter-chip">
+              Date: {filters.dateFrom ?? '…'} → {filters.dateTo ?? '…'}
+              <button
+                onClick={() => setFilters(prev => ({ ...prev, dateFrom: undefined, dateTo: undefined }))}
+                aria-label="Clear date range"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+          {(filters.minAbsNotional != null || filters.maxAbsNotional != null) && (
+            <span className="filter-chip">
+              Notional: {filters.minAbsNotional != null ? `≥ ${filters.minAbsNotional}` : '…'} / {filters.maxAbsNotional != null ? `≤ ${filters.maxAbsNotional}` : '…'}
+              <button
+                onClick={() =>
+                  setFilters(prev => ({
+                    ...prev,
+                    minAbsNotional: undefined,
+                    maxAbsNotional: undefined,
+                  }))
+                }
+                aria-label="Clear notional range"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+          <button
+            className="filter-clear"
+            onClick={() =>
+              setFilters({
+                text: '',
+                types: [],
+                dateFrom: undefined,
+                dateTo: undefined,
+                minAbsNotional: undefined,
+                maxAbsNotional: undefined,
+              })
+            }
+          >
+            Clear all
+          </button>
         </div>
-      </section>
+      )}
+
+      {/* Transactions Table */}
+      <div className={`transactions-workspace ${selectedTransactionId ? 'transactions-workspace--with-detail' : ''}`}>
+        <section className="card">
+          <div className="card__body card__body--flush">
+            <div className="table-container">
+              <table className="transactions-table">
+                <thead>
+                  <tr>
+                    {visibleColumns.map(col => (
+                      <th
+                        key={col.id}
+                        className={`${col.sortable ? 'sortable' : ''} ${col.align === 'right' ? 'text-right' : ''}`}
+                        onClick={() => col.sortable && handleSort(col.id)}
+                        style={{ width: col.width }}
+                      >
+                        <div className="transactions-table__th-content">
+                          {col.label}
+                          {col.sortable && getSortIcon(col.id)}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedRows.map(row => (
+                    <tr
+                      key={row.id}
+                      className={`transactions-table__row ${selectedTransactionId === row.id ? 'transactions-table__row--selected' : ''}`}
+                      onClick={() => setSelectedTransactionId(row.id)}
+                    >
+                      {visibleColumns.map(col => (
+                        <td key={col.id} className={col.align === 'right' ? 'text-right' : ''}>
+                          {renderCell(row, col.id)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        {selectedTransactionId && (
+          <section className="card transactions-detail" aria-label="Transaction details">
+            <div className="card__header">
+              <div className="card__title">Details</div>
+              <button className="btn btn--ghost" onClick={() => setSelectedTransactionId(null)} aria-label="Close details">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="card__body">
+              {(() => {
+                const row = allRows.find(r => r.id === selectedTransactionId);
+                if (!row) return <div className="text-secondary">No transaction selected.</div>;
+
+                return (
+                  <div className="transactions-detail__grid">
+                    <div className="transactions-detail__item">
+                      <span className="transactions-detail__label">Symbol</span>
+                      <span className="transactions-detail__value">{row.symbol}</span>
+                    </div>
+                    <div className="transactions-detail__item">
+                      <span className="transactions-detail__label">Name</span>
+                      <span className="transactions-detail__value">{row.name}</span>
+                    </div>
+                    <div className="transactions-detail__item">
+                      <span className="transactions-detail__label">Type</span>
+                      <span className="transactions-detail__value">{getTransactionTypeLabel(row.type)}</span>
+                    </div>
+                    <div className="transactions-detail__item">
+                      <span className="transactions-detail__label">Date</span>
+                      <span className="transactions-detail__value">{new Date(row.date).toLocaleDateString()}</span>
+                    </div>
+                    <div className="transactions-detail__item">
+                      <span className="transactions-detail__label">Quantity</span>
+                      <span className="transactions-detail__value">{row.quantity.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
+                    </div>
+                    <div className="transactions-detail__item">
+                      <span className="transactions-detail__label">Price</span>
+                      <span className="transactions-detail__value">${row.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="transactions-detail__item">
+                      <span className="transactions-detail__label">Notional</span>
+                      <span className="transactions-detail__value">${row.notional.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="transactions-detail__item transactions-detail__item--full">
+                      <span className="transactions-detail__label">Notes</span>
+                      <span className="transactions-detail__value">{row.notes || '—'}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </section>
+        )}
+      </div>
+
+      {/* Column Customization Dialog */}
+      {showColumnDialog && (
+        <ColumnCustomizationDialog
+          columns={TRANSACTION_COLUMNS}
+          categories={TRANSACTION_CATEGORIES}
+          preferences={preferences}
+          onPreferencesChange={setPreferences}
+          onClose={() => setShowColumnDialog(false)}
+          defaultVisibleIds={DEFAULT_TRANSACTION_COLUMNS}
+          title="Customize Transaction Columns"
+        />
+      )}
 
       {/* Add Transaction Modal */}
       {showAddModal && (
@@ -278,13 +622,13 @@ export default function TransactionsPage() {
   );
 }
 
-function AddTransactionModal({ 
+function AddTransactionModal({
   investments, 
   onAdd, 
   onClose 
 }: { 
   investments: { id: string; name: string; symbol: string; currentPrice: number }[];
-  onAdd: (transaction: Omit<Transaction, 'id'>) => void;
+  onAdd: (transaction: Omit<PortfolioTransaction, 'id'>) => Promise<PortfolioTransaction | null>;
   onClose: () => void;
 }) {
   const [form, setForm] = useState({
@@ -309,13 +653,12 @@ function AddTransactionModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onAdd({
+    void onAdd({
       investmentId: form.investmentId,
       type: form.type,
       quantity: parseFloat(form.quantity),
       price: parseFloat(form.price),
       date: form.date,
-      fees: form.fees ? parseFloat(form.fees) : undefined,
       notes: form.notes || undefined,
     });
     onClose();

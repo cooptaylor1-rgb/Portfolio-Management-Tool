@@ -26,7 +26,7 @@ const MacroPage = lazy(() => import('../pages/MacroPage'));
 const TradeJournalPage = lazy(() => import('../pages/TradeJournalPage'));
 const PositionSizingPage = lazy(() => import('../pages/PositionSizingPage'));
 const DividendsPage = lazy(() => import('../pages/DividendsPage'));
-const WatchlistPage = lazy(() => import('../pages/WatchlistPage'));
+const WatchlistPage = lazy(() => import('../pages/WatchlistPageV3'));
 const AlertsPage = lazy(() => import('../pages/AlertsPage'));
 const CollaboratePage = lazy(() => import('../pages/CollaboratePage'));
 const SettingsPage = lazy(() => import('../pages/SettingsPage'));

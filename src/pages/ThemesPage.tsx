@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { Lightbulb, TrendingUp, TrendingDown, Plus, ExternalLink, Zap, Leaf, Brain, Shield, Globe, Heart, Factory, Cpu } from 'lucide-react';
+import { TrendingUp, TrendingDown, ExternalLink, Zap, Leaf, Brain, Shield, Heart, Factory, Cpu } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './pages.css';
 

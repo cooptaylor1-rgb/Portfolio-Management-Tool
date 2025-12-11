@@ -430,7 +430,7 @@ export const ThemeResearch: React.FC = () => {
             <ResponsiveContainer width="40%" height={200}>
               <PieChart>
                 <defs>
-                  {chartPalette.map((color, idx) => (
+                  {chartPalette.map((_, idx) => (
                     <filter key={`glow-${idx}`} id={`sector-glow-${idx}`}>
                       <feGaussianBlur stdDeviation="3" result="coloredBlur" />
                       <feMerge>
@@ -488,7 +488,7 @@ export const ThemeResearch: React.FC = () => {
             <ResponsiveContainer width="40%" height={200}>
               <PieChart>
                 <defs>
-                  {chartPalette.map((color, idx) => (
+                  {chartPalette.map((_, idx) => (
                     <filter key={`glow-${idx}`} id={`region-glow-${idx}`}>
                       <feGaussianBlur stdDeviation="3" result="coloredBlur" />
                       <feMerge>

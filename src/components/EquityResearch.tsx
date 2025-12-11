@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { Search, TrendingUp, DollarSign, Shield, BarChart3, Activity, AlertCircle } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts'
+import { Search, DollarSign, Shield, BarChart3, Activity, AlertCircle } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts'
 import { ChartContainer } from './ChartComponents'
 import { CustomTooltip } from './CustomTooltip'
 import { chartColors, chartConfig } from '../config/chartTheme'

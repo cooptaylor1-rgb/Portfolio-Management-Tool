@@ -4,14 +4,32 @@
  * Track dividend income, payment schedules, and yield analysis
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, PieChart, Pie, Cell,
+  PieChart, Pie, Cell,
 } from 'recharts';
-import { DollarSign, Calendar, TrendingUp, Percent } from 'lucide-react';
+import { DollarSign, Calendar, TrendingUp, Percent, Columns, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { usePortfolio } from '../contexts/PortfolioContext';
 import { KPICard, KPIGrid } from '../components/ui';
+import {
+  ColumnCustomizationDialog,
+  loadTablePreferences,
+  saveTablePreferences,
+  getOrderedVisibleColumns,
+  updateSort,
+  TablePreferences,
+} from '../features/columns';
+import {
+  DividendHoldingColumnId,
+  DIVIDEND_HOLDING_COLUMNS,
+  DIVIDEND_HOLDING_CATEGORIES,
+  DEFAULT_DIVIDEND_HOLDING_COLUMNS,
+  DividendPaymentColumnId,
+  DIVIDEND_PAYMENT_COLUMNS,
+  DIVIDEND_PAYMENT_CATEGORIES,
+  DEFAULT_DIVIDEND_PAYMENT_COLUMNS,
+} from '../features/dividends';
 import './pages.css';
 
 // Mock dividend data - in production, this would come from API
@@ -27,6 +45,66 @@ const COLORS = ['#58a6ff', '#3fb950', '#a855f7', '#f97316', '#ec4899', '#14b8a6'
 
 export default function DividendsPage() {
   const { investments, transactions } = usePortfolio();
+  const [showHoldingsColumnDialog, setShowHoldingsColumnDialog] = useState(false);
+  const [showPaymentsColumnDialog, setShowPaymentsColumnDialog] = useState(false);
+  
+  // Holdings column preferences
+  const [holdingsPreferences, setHoldingsPreferences] = useState<TablePreferences<DividendHoldingColumnId>>(() =>
+    loadTablePreferences('dividend_holdings', DIVIDEND_HOLDING_COLUMNS, DEFAULT_DIVIDEND_HOLDING_COLUMNS)
+  );
+  
+  // Payments column preferences
+  const [paymentsPreferences, setPaymentsPreferences] = useState<TablePreferences<DividendPaymentColumnId>>(() =>
+    loadTablePreferences('dividend_payments', DIVIDEND_PAYMENT_COLUMNS, DEFAULT_DIVIDEND_PAYMENT_COLUMNS)
+  );
+
+  // Save preferences when they change
+  useEffect(() => {
+    saveTablePreferences('dividend_holdings', holdingsPreferences);
+  }, [holdingsPreferences]);
+  
+  useEffect(() => {
+    saveTablePreferences('dividend_payments', paymentsPreferences);
+  }, [paymentsPreferences]);
+
+  // Get visible columns in order
+  const visibleHoldingsColumns = useMemo(
+    () => getOrderedVisibleColumns(DIVIDEND_HOLDING_COLUMNS, holdingsPreferences),
+    [holdingsPreferences]
+  );
+  
+  const visiblePaymentsColumns = useMemo(
+    () => getOrderedVisibleColumns(DIVIDEND_PAYMENT_COLUMNS, paymentsPreferences),
+    [paymentsPreferences]
+  );
+
+  // Handle sort
+  const handleHoldingsSort = useCallback((columnId: DividendHoldingColumnId) => {
+    setHoldingsPreferences(prev => updateSort(prev, columnId));
+  }, []);
+  
+  const handlePaymentsSort = useCallback((columnId: DividendPaymentColumnId) => {
+    setPaymentsPreferences(prev => updateSort(prev, columnId));
+  }, []);
+
+  // Get sort icons
+  const getHoldingsSortIcon = (columnId: DividendHoldingColumnId) => {
+    if (holdingsPreferences.sortBy?.columnId !== columnId) {
+      return <ArrowUpDown size={12} className="sort-icon--inactive" />;
+    }
+    return holdingsPreferences.sortBy.direction === 'asc' 
+      ? <ArrowUp size={12} className="sort-icon--active" />
+      : <ArrowDown size={12} className="sort-icon--active" />;
+  };
+  
+  const getPaymentsSortIcon = (columnId: DividendPaymentColumnId) => {
+    if (paymentsPreferences.sortBy?.columnId !== columnId) {
+      return <ArrowUpDown size={12} className="sort-icon--inactive" />;
+    }
+    return paymentsPreferences.sortBy.direction === 'asc' 
+      ? <ArrowUp size={12} className="sort-icon--active" />
+      : <ArrowDown size={12} className="sort-icon--active" />;
+  };
 
   // Calculate dividend holdings
   const dividendHoldings = useMemo(() => {
@@ -213,16 +291,31 @@ export default function DividendsPage() {
         <section className="card">
           <div className="card__header">
             <h2 className="card__title">Upcoming Payments</h2>
-            <span className="card__badge">{stats.upcomingCount} this month</span>
+            <div className="card__header-actions">
+              <span className="card__badge">{stats.upcomingCount} this month</span>
+              <button 
+                className="btn btn--ghost btn--sm"
+                onClick={() => setShowPaymentsColumnDialog(true)}
+                title="Customize columns"
+              >
+                <Columns size={14} />
+              </button>
+            </div>
           </div>
           <div className="card__body card__body--flush">
             <table className="holdings-table">
               <thead>
                 <tr>
-                  <th>Symbol</th>
-                  <th>Expected</th>
-                  <th>Pay Date</th>
-                  <th>Days</th>
+                  {visiblePaymentsColumns.map(col => (
+                    <th
+                      key={col.id}
+                      className={col.sortable ? 'sortable' : ''}
+                      onClick={() => col.sortable && handlePaymentsSort(col.id)}
+                    >
+                      {col.label}
+                      {col.sortable && getPaymentsSortIcon(col.id)}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -232,14 +325,22 @@ export default function DividendsPage() {
                   .slice(0, 5)
                   .map(h => (
                     <tr key={h.symbol}>
-                      <td><span className="holding-ticker">{h.symbol}</span></td>
-                      <td>${h.quarterlyDividend.toFixed(2)}</td>
-                      <td>{new Date(h.nextPay).toLocaleDateString()}</td>
-                      <td>
-                        <span className={`days-badge ${h.daysUntilNext <= 14 ? 'soon' : ''}`}>
-                          {h.daysUntilNext}d
-                        </span>
-                      </td>
+                      {visiblePaymentsColumns.map(col => (
+                        <td key={col.id}>
+                          {col.id === 'symbol' && <span className="holding-ticker">{h.symbol}</span>}
+                          {col.id === 'expectedAmount' && `$${h.quarterlyDividend.toFixed(2)}`}
+                          {col.id === 'payDate' && new Date(h.nextPay).toLocaleDateString()}
+                          {col.id === 'daysUntil' && (
+                            <span className={`days-badge ${h.daysUntilNext <= 14 ? 'soon' : ''}`}>
+                              {h.daysUntilNext}d
+                            </span>
+                          )}
+                          {col.id === 'name' && h.name}
+                          {col.id === 'shares' && h.shares}
+                          {col.id === 'yield' && `${h.yield.toFixed(2)}%`}
+                          {col.id === 'frequency' && h.frequency}
+                        </td>
+                      ))}
                     </tr>
                   ))}
               </tbody>
@@ -251,31 +352,50 @@ export default function DividendsPage() {
         <section className="card dividend-holdings-card">
           <div className="card__header">
             <h2 className="card__title">Dividend Holdings</h2>
+            <button 
+              className="btn btn--ghost btn--sm"
+              onClick={() => setShowHoldingsColumnDialog(true)}
+              title="Customize columns"
+            >
+              <Columns size={14} />
+            </button>
           </div>
           <div className="card__body card__body--flush">
             <table className="holdings-table">
               <thead>
                 <tr>
-                  <th>Symbol</th>
-                  <th>Shares</th>
-                  <th>Yield</th>
-                  <th>Frequency</th>
-                  <th>Annual Income</th>
+                  {visibleHoldingsColumns.map(col => (
+                    <th
+                      key={col.id}
+                      className={col.sortable ? 'sortable' : ''}
+                      onClick={() => col.sortable && handleHoldingsSort(col.id)}
+                    >
+                      {col.label}
+                      {col.sortable && getHoldingsSortIcon(col.id)}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {dividendHoldings.map(h => (
                   <tr key={h.symbol}>
-                    <td>
-                      <div className="holding-symbol">
-                        <span className="holding-ticker">{h.symbol}</span>
-                        <span className="holding-name">{h.name}</span>
-                      </div>
-                    </td>
-                    <td>{h.shares}</td>
-                    <td className="text-highlight">{h.yield.toFixed(2)}%</td>
-                    <td className="text-muted">{h.frequency}</td>
-                    <td className="text-positive">${h.annualDividend.toFixed(2)}</td>
+                    {visibleHoldingsColumns.map(col => (
+                      <td key={col.id}>
+                        {col.id === 'symbol' && (
+                          <div className="holding-symbol">
+                            <span className="holding-ticker">{h.symbol}</span>
+                            <span className="holding-name">{h.name}</span>
+                          </div>
+                        )}
+                        {col.id === 'name' && h.name}
+                        {col.id === 'shares' && h.shares}
+                        {col.id === 'yield' && <span className="text-highlight">{h.yield.toFixed(2)}%</span>}
+                        {col.id === 'frequency' && <span className="text-muted">{h.frequency}</span>}
+                        {col.id === 'annualIncome' && <span className="text-positive">${h.annualDividend.toFixed(2)}</span>}
+                        {col.id === 'value' && `$${h.value.toFixed(2)}`}
+                        {col.id === 'quarterlyIncome' && `$${h.quarterlyDividend.toFixed(2)}`}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -283,6 +403,31 @@ export default function DividendsPage() {
           </div>
         </section>
       </div>
+
+      {/* Column Customization Dialogs */}
+      {showHoldingsColumnDialog && (
+        <ColumnCustomizationDialog
+          columns={DIVIDEND_HOLDING_COLUMNS}
+          categories={DIVIDEND_HOLDING_CATEGORIES}
+          preferences={holdingsPreferences}
+          onPreferencesChange={setHoldingsPreferences}
+          onClose={() => setShowHoldingsColumnDialog(false)}
+          defaultVisibleIds={DEFAULT_DIVIDEND_HOLDING_COLUMNS}
+          title="Customize Dividend Holdings Columns"
+        />
+      )}
+      
+      {showPaymentsColumnDialog && (
+        <ColumnCustomizationDialog
+          columns={DIVIDEND_PAYMENT_COLUMNS}
+          categories={DIVIDEND_PAYMENT_CATEGORIES}
+          preferences={paymentsPreferences}
+          onPreferencesChange={setPaymentsPreferences}
+          onClose={() => setShowPaymentsColumnDialog(false)}
+          defaultVisibleIds={DEFAULT_DIVIDEND_PAYMENT_COLUMNS}
+          title="Customize Upcoming Payments Columns"
+        />
+      )}
     </div>
   );
 }
