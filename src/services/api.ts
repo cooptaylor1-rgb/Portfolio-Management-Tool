@@ -30,23 +30,37 @@ class ApiClient {
   private refreshToken: string | null = null;
 
   constructor() {
-    // Load tokens from storage
-    this.token = localStorage.getItem('auth_token');
-    this.refreshToken = localStorage.getItem('refresh_token');
+    // Load tokens from storage (safely handle sandboxed environments)
+    try {
+      this.token = localStorage.getItem('auth_token');
+      this.refreshToken = localStorage.getItem('refresh_token');
+    } catch {
+      // localStorage not available (e.g., sandboxed iframe)
+      this.token = null;
+      this.refreshToken = null;
+    }
   }
 
   setTokens(access: string, refresh: string) {
     this.token = access;
     this.refreshToken = refresh;
-    localStorage.setItem('auth_token', access);
-    localStorage.setItem('refresh_token', refresh);
+    try {
+      localStorage.setItem('auth_token', access);
+      localStorage.setItem('refresh_token', refresh);
+    } catch {
+      // localStorage not available
+    }
   }
 
   clearTokens() {
     this.token = null;
     this.refreshToken = null;
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('refresh_token');
+    try {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('refresh_token');
+    } catch {
+      // localStorage not available
+    }
   }
 
   private async request<T>(

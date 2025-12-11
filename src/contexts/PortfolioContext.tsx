@@ -269,15 +269,33 @@ const getSampleTransactions = (): Transaction[] => [
   { id: '9', investmentId: '10', type: 'buy', quantity: 0.2, price: 65000.00, date: '2024-11-15', notes: 'Added on dip' },
 ];
 
+// Safe localStorage helper
+const safeLocalStorage = {
+  getItem: (key: string): string | null => {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // localStorage not available
+    }
+  },
+};
+
 export function PortfolioProvider({ children }: { children: ReactNode }) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [activePortfolio, setActivePortfolio] = useState<Portfolio | null>(null);
   const [investments, setInvestments] = useState<Investment[]>(() => {
-    const saved = localStorage.getItem('portfolio_investments');
+    const saved = safeLocalStorage.getItem('portfolio_investments');
     return saved ? JSON.parse(saved) : getSamplePortfolio();
   });
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = localStorage.getItem('portfolio_transactions');
+    const saved = safeLocalStorage.getItem('portfolio_transactions');
     return saved ? JSON.parse(saved) : getSampleTransactions();
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -302,11 +320,11 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
 
   // Persist to localStorage
   useEffect(() => {
-    localStorage.setItem('portfolio_investments', JSON.stringify(investments));
+    safeLocalStorage.setItem('portfolio_investments', JSON.stringify(investments));
   }, [investments]);
 
   useEffect(() => {
-    localStorage.setItem('portfolio_transactions', JSON.stringify(transactions));
+    safeLocalStorage.setItem('portfolio_transactions', JSON.stringify(transactions));
   }, [transactions]);
 
   // Fetch portfolios from backend if authenticated
@@ -370,6 +388,10 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       if (response.data.portfolios.length > 0 && !activePortfolio) {
         await selectPortfolio(response.data.portfolios[0].id);
       }
+    } else if (response.error?.code === 'MISSING_TOKEN' || response.error?.code === 'INVALID_TOKEN') {
+      // Clear stale tokens and use sample data
+      api.clearTokens();
+      console.info('Using demo mode with sample portfolio data');
     }
     setIsLoading(false);
   };
