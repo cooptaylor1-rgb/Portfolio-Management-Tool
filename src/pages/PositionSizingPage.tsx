@@ -279,7 +279,7 @@ export default function PositionSizingPage() {
         <section className="card">
           <div className="card__header">
             <h2 className="card__title">Kelly Criterion</h2>
-            <Info size={16} className="info-icon" title="Optimal bet sizing based on edge" />
+            <span title="Optimal bet sizing based on edge"><Info size={16} className="info-icon" /></span>
           </div>
           <div className="card__body">
             <div className="kelly-result">

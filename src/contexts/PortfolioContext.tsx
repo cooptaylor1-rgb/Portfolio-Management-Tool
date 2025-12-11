@@ -1,28 +1,116 @@
 /**
- * Portfolio Context
+ * Portfolio Context - Enhanced with API Integration
  * 
- * Centralized state management for portfolio data
- * shared across all pages in the application.
+ * Centralized state management for portfolio data with:
+ * - Backend API integration
+ * - Real-time price updates
+ * - Local caching for offline support
+ * - Optimistic updates
  */
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { Investment, Transaction, PortfolioStats, RiskMetrics } from '../types';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { api, Portfolio, Investment as ApiInvestment, CreateInvestmentData } from '../services/api';
+import { realTimeMarket } from '../services/realTimeMarket';
+
+// Type conversion helpers
+type FrontendInvestmentType = 'stock' | 'etf' | 'bond' | 'crypto' | 'mutual_fund' | 'other';
+type ApiInvestmentType = 'STOCK' | 'ETF' | 'BOND' | 'CRYPTO' | 'MUTUAL_FUND' | 'OTHER';
+
+const typeToApi = (type: FrontendInvestmentType): ApiInvestmentType => {
+  const map: Record<FrontendInvestmentType, ApiInvestmentType> = {
+    stock: 'STOCK',
+    etf: 'ETF',
+    bond: 'BOND',
+    crypto: 'CRYPTO',
+    mutual_fund: 'MUTUAL_FUND',
+    other: 'OTHER',
+  };
+  return map[type] || 'OTHER';
+};
+
+const typeFromApi = (type: ApiInvestmentType): FrontendInvestmentType => {
+  const map: Record<ApiInvestmentType, FrontendInvestmentType> = {
+    STOCK: 'stock',
+    ETF: 'etf',
+    BOND: 'bond',
+    CRYPTO: 'crypto',
+    MUTUAL_FUND: 'mutual_fund',
+    OTHER: 'other',
+  };
+  return map[type] || 'other';
+};
+
+// Frontend-friendly types
+export interface Investment {
+  id: string;
+  name: string;
+  symbol: string;
+  type: FrontendInvestmentType;
+  quantity: number;
+  purchasePrice: number;
+  currentPrice: number;
+  purchaseDate: string;
+  sector?: string;
+  notes?: string;
+  dayChange?: number;
+  dayChangePercent?: number;
+}
+
+export interface Transaction {
+  id: string;
+  investmentId: string;
+  type: 'buy' | 'sell' | 'dividend' | 'split';
+  quantity: number;
+  price: number;
+  date: string;
+  notes?: string;
+}
+
+export interface PortfolioStats {
+  totalValue: number;
+  totalInvested: number;
+  totalGainLoss: number;
+  gainLossPercentage: number;
+  averageReturn: number;
+  diversificationScore: number;
+  dayChange?: number;
+  dayChangePercentage?: number;
+  bestPerformer?: { name: string; percentage: number };
+  worstPerformer?: { name: string; percentage: number };
+}
+
+export interface RiskMetrics {
+  portfolioVolatility: number;
+  sharpeRatio: number;
+  beta: number;
+  maxDrawdown: number;
+  valueAtRisk: number;
+  riskLevel: 'conservative' | 'moderate' | 'aggressive';
+}
 
 interface PortfolioContextType {
-  // Data
+  // Portfolio data
+  portfolios: Portfolio[];
+  activePortfolio: Portfolio | null;
   investments: Investment[];
   transactions: Transaction[];
   stats: PortfolioStats;
   riskMetrics: RiskMetrics;
   
   // Actions
-  addInvestment: (investment: Omit<Investment, 'id'>) => void;
-  updateInvestment: (id: string, updates: Partial<Investment>) => void;
-  deleteInvestment: (id: string) => void;
-  addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
+  selectPortfolio: (id: string) => Promise<void>;
+  createPortfolio: (name: string, description?: string) => Promise<Portfolio | null>;
+  deletePortfolio: (id: string) => Promise<boolean>;
+  addInvestment: (investment: Omit<Investment, 'id' | 'currentPrice' | 'dayChange' | 'dayChangePercent'>) => Promise<Investment | null>;
+  updateInvestment: (id: string, updates: Partial<Investment>) => Promise<boolean>;
+  deleteInvestment: (id: string) => Promise<boolean>;
+  addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<Transaction | null>;
+  refreshPrices: () => Promise<void>;
   
-  // Loading state
+  // State
   isLoading: boolean;
+  error: string | null;
+  isOnline: boolean;
 }
 
 const PortfolioContext = createContext<PortfolioContextType | null>(null);
@@ -35,7 +123,7 @@ export function usePortfolio() {
   return context;
 }
 
-// Sample portfolio data
+// Sample data for demo mode (when not connected to backend)
 const getSamplePortfolio = (): Investment[] => [
   {
     id: '1',
@@ -182,17 +270,35 @@ const getSampleTransactions = (): Transaction[] => [
 ];
 
 export function PortfolioProvider({ children }: { children: ReactNode }) {
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [activePortfolio, setActivePortfolio] = useState<Portfolio | null>(null);
   const [investments, setInvestments] = useState<Investment[]>(() => {
     const saved = localStorage.getItem('portfolio_investments');
     return saved ? JSON.parse(saved) : getSamplePortfolio();
   });
-
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('portfolio_transactions');
     return saved ? JSON.parse(saved) : getSampleTransactions();
   });
-
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
+  const priceUpdateInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Monitor online status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Persist to localStorage
   useEffect(() => {
@@ -203,47 +309,362 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('portfolio_transactions', JSON.stringify(transactions));
   }, [transactions]);
 
-  // Calculate portfolio stats
-  const stats: PortfolioStats = calculateStats(investments);
-  const riskMetrics: RiskMetrics = calculateRiskMetrics(investments);
+  // Fetch portfolios from backend if authenticated
+  useEffect(() => {
+    if (api.isAuthenticated()) {
+      loadPortfolios();
+    }
+  }, []);
 
-  const addInvestment = useCallback((investment: Omit<Investment, 'id'>) => {
+  // Real-time price updates
+  useEffect(() => {
+    const symbols = investments.map(inv => inv.symbol);
+    if (symbols.length === 0) return;
+
+    // Subscribe to real-time updates
+    let unsubscribe: (() => void) | undefined;
+    
+    realTimeMarket.subscribe(symbols, (quote) => {
+      setInvestments(prev => prev.map(inv => {
+        if (inv.symbol.toUpperCase() === quote.symbol.toUpperCase()) {
+          return {
+            ...inv,
+            currentPrice: quote.price,
+            dayChange: quote.change,
+            dayChangePercent: quote.changePercent,
+          };
+        }
+        return inv;
+      }));
+    }).then(unsub => {
+      unsubscribe = unsub;
+    }).catch(() => {
+      // WebSocket not available, fall back to polling
+      startPricePolling();
+    });
+
+    return () => {
+      unsubscribe?.();
+      if (priceUpdateInterval.current) {
+        clearInterval(priceUpdateInterval.current);
+      }
+    };
+  }, [investments.map(i => i.symbol).join(',')]);
+
+  const startPricePolling = () => {
+    if (priceUpdateInterval.current) {
+      clearInterval(priceUpdateInterval.current);
+    }
+    
+    priceUpdateInterval.current = setInterval(async () => {
+      await refreshPrices();
+    }, 30000); // Poll every 30 seconds
+  };
+
+  const loadPortfolios = async () => {
+    setIsLoading(true);
+    const response = await api.getPortfolios();
+    
+    if (response.success && response.data) {
+      setPortfolios(response.data.portfolios);
+      if (response.data.portfolios.length > 0 && !activePortfolio) {
+        await selectPortfolio(response.data.portfolios[0].id);
+      }
+    }
+    setIsLoading(false);
+  };
+
+  const selectPortfolio = useCallback(async (id: string) => {
+    setIsLoading(true);
+    setError(null);
+    
+    const response = await api.getPortfolio(id);
+    
+    if (response.success && response.data) {
+      setActivePortfolio(response.data.portfolio);
+      
+      // Convert API investments to frontend format
+      const apiInvestments = response.data.portfolio.investments || [];
+      const frontendInvestments: Investment[] = apiInvestments.map((inv: ApiInvestment) => ({
+        id: inv.id,
+        name: inv.name,
+        symbol: inv.symbol,
+        type: inv.type.toLowerCase() as Investment['type'],
+        quantity: inv.quantity,
+        purchasePrice: inv.purchasePrice,
+        currentPrice: inv.currentPrice || inv.purchasePrice,
+        purchaseDate: inv.purchaseDate,
+        sector: inv.sector,
+        notes: inv.notes,
+        dayChange: 0,
+        dayChangePercent: 0,
+      }));
+      
+      setInvestments(frontendInvestments);
+      
+      // Refresh prices for the new portfolio
+      await refreshPrices();
+    } else {
+      setError(response.error?.message || 'Failed to load portfolio');
+    }
+    
+    setIsLoading(false);
+  }, []);
+
+  const createPortfolio = useCallback(async (name: string, description?: string): Promise<Portfolio | null> => {
+    setIsLoading(true);
+    setError(null);
+    
+    const response = await api.createPortfolio({ name, description });
+    
+    if (response.success && response.data) {
+      const newPortfolio = response.data.portfolio;
+      setPortfolios(prev => [...prev, newPortfolio]);
+      setIsLoading(false);
+      return newPortfolio;
+    }
+    
+    setError(response.error?.message || 'Failed to create portfolio');
+    setIsLoading(false);
+    return null;
+  }, []);
+
+  const deletePortfolio = useCallback(async (id: string): Promise<boolean> => {
+    setIsLoading(true);
+    setError(null);
+    
+    const response = await api.deletePortfolio(id);
+    
+    if (response.success) {
+      setPortfolios(prev => prev.filter(p => p.id !== id));
+      if (activePortfolio?.id === id) {
+        setActivePortfolio(null);
+        setInvestments([]);
+      }
+      setIsLoading(false);
+      return true;
+    }
+    
+    setError(response.error?.message || 'Failed to delete portfolio');
+    setIsLoading(false);
+    return false;
+  }, [activePortfolio]);
+
+  const addInvestment = useCallback(async (
+    investment: Omit<Investment, 'id' | 'currentPrice' | 'dayChange' | 'dayChangePercent'>
+  ): Promise<Investment | null> => {
+    // For demo mode without backend
     const newInvestment: Investment = {
       ...investment,
       id: Date.now().toString(),
+      currentPrice: investment.purchasePrice,
+      dayChange: 0,
+      dayChangePercent: 0,
     };
+    
+    // Optimistic update
     setInvestments(prev => [...prev, newInvestment]);
-  }, []);
+    
+    // If connected to backend, sync
+    if (activePortfolio && api.isAuthenticated()) {
+      const response = await api.addInvestment(activePortfolio.id, {
+        symbol: investment.symbol,
+        name: investment.name,
+        type: investment.type.toUpperCase() as ApiInvestment['type'],
+        quantity: investment.quantity,
+        purchasePrice: investment.purchasePrice,
+        purchaseDate: new Date(investment.purchaseDate).toISOString(),
+        sector: investment.sector,
+        notes: investment.notes,
+      });
+      
+      if (response.success && response.data) {
+        // Update with server-generated ID
+        setInvestments(prev => prev.map(inv => 
+          inv.id === newInvestment.id 
+            ? { ...inv, id: response.data!.investment.id }
+            : inv
+        ));
+        return { ...newInvestment, id: response.data.investment.id };
+      } else {
+        // Rollback on failure
+        setInvestments(prev => prev.filter(inv => inv.id !== newInvestment.id));
+        setError(response.error?.message || 'Failed to add investment');
+        return null;
+      }
+    }
+    
+    // Add initial transaction
+    const transaction: Transaction = {
+      id: Date.now().toString(),
+      investmentId: newInvestment.id,
+      type: 'buy',
+      quantity: investment.quantity,
+      price: investment.purchasePrice,
+      date: investment.purchaseDate,
+      notes: 'Initial position',
+    };
+    setTransactions(prev => [...prev, transaction]);
+    
+    return newInvestment;
+  }, [activePortfolio]);
 
-  const updateInvestment = useCallback((id: string, updates: Partial<Investment>) => {
+  const updateInvestment = useCallback(async (id: string, updates: Partial<Investment>): Promise<boolean> => {
+    // Optimistic update
     setInvestments(prev => prev.map(inv => 
       inv.id === id ? { ...inv, ...updates } : inv
     ));
-  }, []);
+    
+    // If connected to backend, sync
+    if (activePortfolio && api.isAuthenticated()) {
+      // Convert frontend type to API type if present
+      const apiUpdates: Record<string, unknown> = { ...updates };
+      if (updates.type) {
+        apiUpdates.type = typeToApi(updates.type);
+      }
+      const response = await api.updateInvestment(activePortfolio.id, id, apiUpdates as Partial<ApiInvestment>);
+      
+      if (!response.success) {
+        // Rollback on failure
+        setInvestments(prev => {
+          const saved = localStorage.getItem('portfolio_investments');
+          return saved ? JSON.parse(saved) : prev;
+        });
+        setError(response.error?.message || 'Failed to update investment');
+        return false;
+      }
+    }
+    
+    return true;
+  }, [activePortfolio]);
 
-  const deleteInvestment = useCallback((id: string) => {
+  const deleteInvestment = useCallback(async (id: string): Promise<boolean> => {
+    const deletedInvestment = investments.find(inv => inv.id === id);
+    
+    // Optimistic update
     setInvestments(prev => prev.filter(inv => inv.id !== id));
-  }, []);
+    setTransactions(prev => prev.filter(t => t.investmentId !== id));
+    
+    // If connected to backend, sync
+    if (activePortfolio && api.isAuthenticated()) {
+      const response = await api.deleteInvestment(activePortfolio.id, id);
+      
+      if (!response.success) {
+        // Rollback on failure
+        if (deletedInvestment) {
+          setInvestments(prev => [...prev, deletedInvestment]);
+        }
+        setError(response.error?.message || 'Failed to delete investment');
+        return false;
+      }
+    }
+    
+    return true;
+  }, [activePortfolio, investments]);
 
-  const addTransaction = useCallback((transaction: Omit<Transaction, 'id'>) => {
+  const addTransaction = useCallback(async (
+    transaction: Omit<Transaction, 'id'>
+  ): Promise<Transaction | null> => {
     const newTransaction: Transaction = {
       ...transaction,
       id: Date.now().toString(),
     };
+    
+    // Update investment quantity based on transaction
+    setInvestments(prev => prev.map(inv => {
+      if (inv.id === transaction.investmentId) {
+        let newQuantity = inv.quantity;
+        if (transaction.type === 'buy') {
+          newQuantity += transaction.quantity;
+        } else if (transaction.type === 'sell') {
+          newQuantity -= transaction.quantity;
+        } else if (transaction.type === 'split') {
+          newQuantity *= transaction.quantity;
+        }
+        return { ...inv, quantity: newQuantity };
+      }
+      return inv;
+    }));
+    
     setTransactions(prev => [...prev, newTransaction]);
-  }, []);
+    
+    // Sync with backend if connected
+    if (activePortfolio && api.isAuthenticated()) {
+      const response = await api.recordTransaction(
+        activePortfolio.id, 
+        transaction.investmentId,
+        {
+          type: transaction.type.toUpperCase() as 'BUY' | 'SELL' | 'DIVIDEND' | 'SPLIT',
+          quantity: transaction.quantity,
+          price: transaction.price,
+          date: new Date(transaction.date).toISOString(),
+          notes: transaction.notes,
+        }
+      );
+      
+      if (response.success && response.data) {
+        setTransactions(prev => prev.map(t =>
+          t.id === newTransaction.id
+            ? { ...t, id: response.data!.transaction.id }
+            : t
+        ));
+      }
+    }
+    
+    return newTransaction;
+  }, [activePortfolio]);
+
+  const refreshPrices = useCallback(async () => {
+    const symbols = investments.map(inv => inv.symbol);
+    if (symbols.length === 0) return;
+    
+    try {
+      const response = await api.getBatchQuotes(symbols);
+      
+      if (response.success && response.data) {
+        const quoteMap = new Map(response.data.quotes.map(q => [q.symbol.toUpperCase(), q]));
+        
+        setInvestments(prev => prev.map(inv => {
+          const quote = quoteMap.get(inv.symbol.toUpperCase());
+          if (quote && !('error' in quote)) {
+            return {
+              ...inv,
+              currentPrice: quote.price,
+              dayChange: quote.change,
+              dayChangePercent: quote.changePercent,
+            };
+          }
+          return inv;
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to refresh prices:', error);
+    }
+  }, [investments]);
+
+  // Calculate portfolio stats
+  const stats: PortfolioStats = calculateStats(investments);
+  const riskMetrics: RiskMetrics = calculateRiskMetrics(investments);
 
   return (
     <PortfolioContext.Provider value={{
+      portfolios,
+      activePortfolio,
       investments,
       transactions,
       stats,
       riskMetrics,
+      selectPortfolio,
+      createPortfolio,
+      deletePortfolio,
       addInvestment,
       updateInvestment,
       deleteInvestment,
       addTransaction,
+      refreshPrices,
       isLoading,
+      error,
+      isOnline,
     }}>
       {children}
     </PortfolioContext.Provider>
@@ -309,40 +730,37 @@ function calculateRiskMetrics(investments: Investment[]): RiskMetrics {
     };
   }
 
-  // Simulated risk calculations (would use real data in production)
+  const totalValue = investments.reduce((sum, inv) => sum + inv.quantity * inv.currentPrice, 0);
+
   const cryptoWeight = investments
     .filter(inv => inv.type === 'crypto')
-    .reduce((sum, inv) => sum + inv.quantity * inv.currentPrice, 0) /
-    investments.reduce((sum, inv) => sum + inv.quantity * inv.currentPrice, 0);
+    .reduce((sum, inv) => sum + inv.quantity * inv.currentPrice, 0) / totalValue;
 
   const stockWeight = investments
     .filter(inv => inv.type === 'stock')
-    .reduce((sum, inv) => sum + inv.quantity * inv.currentPrice, 0) /
-    investments.reduce((sum, inv) => sum + inv.quantity * inv.currentPrice, 0);
+    .reduce((sum, inv) => sum + inv.quantity * inv.currentPrice, 0) / totalValue;
 
   const bondWeight = investments
     .filter(inv => inv.type === 'bond')
-    .reduce((sum, inv) => sum + inv.quantity * inv.currentPrice, 0) /
-    investments.reduce((sum, inv) => sum + inv.quantity * inv.currentPrice, 0);
+    .reduce((sum, inv) => sum + inv.quantity * inv.currentPrice, 0) / totalValue;
 
-  // Volatility based on asset mix (simplified)
+  // Volatility based on asset mix
   const portfolioVolatility = 15 + (cryptoWeight * 50) + (stockWeight * 5) - (bondWeight * 10);
   
   // Beta approximation
   const beta = 1 + (cryptoWeight * 0.5) - (bondWeight * 0.3);
   
-  // Sharpe ratio (assuming 5% risk-free rate)
+  // Sharpe ratio
   const expectedReturn = investments.reduce((sum, inv) => {
     const ret = ((inv.currentPrice - inv.purchasePrice) / inv.purchasePrice) * 100;
-    const weight = (inv.quantity * inv.currentPrice) / 
-      investments.reduce((s, i) => s + i.quantity * i.currentPrice, 0);
+    const weight = (inv.quantity * inv.currentPrice) / totalValue;
     return sum + ret * weight;
   }, 0);
-  const sharpeRatio = (expectedReturn - 5) / portfolioVolatility;
+  const sharpeRatio = portfolioVolatility > 0 ? (expectedReturn - 5) / portfolioVolatility : 0;
 
-  // Max drawdown and VaR (simplified)
+  // Max drawdown and VaR
   const maxDrawdown = 15 + (cryptoWeight * 30) + (stockWeight * 10) - (bondWeight * 5);
-  const valueAtRisk = portfolioVolatility * 1.65; // 95% confidence
+  const valueAtRisk = portfolioVolatility * 1.65 * (totalValue / 100);
 
   // Risk level
   let riskLevel: 'conservative' | 'moderate' | 'aggressive' = 'moderate';

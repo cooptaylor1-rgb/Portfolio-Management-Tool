@@ -285,10 +285,18 @@ function AddAlertModal({
   onAdd: (alert: Omit<PriceAlert, 'id' | 'createdAt' | 'triggered'>) => void;
   onClose: () => void;
 }) {
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    symbol: string;
+    name: string;
+    type: 'above' | 'below';
+    targetPrice: string;
+    currentPrice: string;
+    enabled: boolean;
+    notes: string;
+  }>({
     symbol: '',
     name: '',
-    type: 'above' as const,
+    type: 'above',
     targetPrice: '',
     currentPrice: '',
     enabled: true,

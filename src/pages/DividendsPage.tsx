@@ -120,26 +120,26 @@ export default function DividendsPage() {
           label="Annual Dividend Income"
           value={stats.totalAnnualDividend}
           format="currency"
-          icon={DollarSign}
+          icon={<DollarSign size={18} />}
           variant="highlight"
         />
         <KPICard
           label="Portfolio Yield"
           value={stats.portfolioYield}
           format="percent"
-          icon={Percent}
+          icon={<Percent size={18} />}
         />
         <KPICard
           label="YTD Dividends"
           value={stats.ytdDividends}
           format="currency"
-          icon={TrendingUp}
+          icon={<TrendingUp size={18} />}
         />
         <KPICard
           label="Monthly Average"
           value={stats.monthlyAverage}
           format="currency"
-          icon={Calendar}
+          icon={<Calendar size={18} />}
         />
       </KPIGrid>
 

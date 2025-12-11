@@ -2,13 +2,14 @@
  * Dashboard Page
  * 
  * Executive summary view with:
- * - Portfolio KPIs
+ * - Portfolio KPIs (from real data)
  * - Performance chart
- * - Top positions
- * - Recent activity
+ * - Top positions (from real holdings)
+ * - Recent activity (from transactions)
  * - Alerts/notifications
  */
 
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   DollarSign,
@@ -16,6 +17,11 @@ import {
   ArrowDownRight,
   Bell,
   ChevronRight,
+  TrendingUp,
+  TrendingDown,
+  Coins,
+  Activity,
+  RefreshCw,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -31,91 +37,229 @@ import {
 } from 'recharts';
 import { KPICard, KPIGrid } from '../components/ui';
 import { useShell } from '../layouts';
+import { usePortfolio } from '../contexts/PortfolioContext';
 
-// Mock data - replace with actual API calls
-const mockKPIs = {
-  totalValue: 1547832.45,
-  totalGain: 234567.89,
-  totalGainPercent: 17.85,
-  dayChange: 12345.67,
-  dayChangePercent: 0.81,
-  positions: 24,
-  cashBalance: 45678.90,
-  allocatedPercent: 97.05,
+const SECTOR_COLORS: Record<string, string> = {
+  'Technology': '#58a6ff',
+  'Healthcare': '#3fb950',
+  'Financials': '#a855f7',
+  'Consumer Discretionary': '#f97316',
+  'Broad Market': '#14b8a6',
+  'Cryptocurrency': '#eab308',
+  'Other': '#6e7681',
 };
-
-const mockPerformanceData = [
-  { date: '2024-01', value: 1320000, benchmark: 1300000 },
-  { date: '2024-02', value: 1380000, benchmark: 1340000 },
-  { date: '2024-03', value: 1350000, benchmark: 1320000 },
-  { date: '2024-04', value: 1420000, benchmark: 1380000 },
-  { date: '2024-05', value: 1480000, benchmark: 1420000 },
-  { date: '2024-06', value: 1520000, benchmark: 1460000 },
-  { date: '2024-07', value: 1547832, benchmark: 1490000 },
-];
-
-const mockTopPositions = [
-  { symbol: 'AAPL', name: 'Apple Inc.', value: 245000, weight: 15.8, change: 2.34 },
-  { symbol: 'MSFT', name: 'Microsoft Corp.', value: 198000, weight: 12.8, change: 1.56 },
-  { symbol: 'GOOGL', name: 'Alphabet Inc.', value: 167000, weight: 10.8, change: -0.89 },
-  { symbol: 'AMZN', name: 'Amazon.com Inc.', value: 145000, weight: 9.4, change: 3.21 },
-  { symbol: 'NVDA', name: 'NVIDIA Corp.', value: 134000, weight: 8.7, change: 5.67 },
-];
-
-const mockSectorAllocation = [
-  { name: 'Technology', value: 45, color: '#58a6ff' },
-  { name: 'Healthcare', value: 18, color: '#3fb950' },
-  { name: 'Finance', value: 15, color: '#a855f7' },
-  { name: 'Consumer', value: 12, color: '#f97316' },
-  { name: 'Other', value: 10, color: '#6e7681' },
-];
-
-const mockRecentActivity = [
-  { type: 'BUY', symbol: 'NVDA', shares: 50, price: 875.50, time: '2 hours ago' },
-  { type: 'DIVIDEND', symbol: 'AAPL', amount: 234.56, time: '1 day ago' },
-  { type: 'SELL', symbol: 'TSLA', shares: 25, price: 245.30, time: '2 days ago' },
-  { type: 'BUY', symbol: 'GOOGL', shares: 10, price: 178.45, time: '3 days ago' },
-];
-
-const mockAlerts = [
-  { id: 1, type: 'price', message: 'AAPL crossed above $195', time: '1 hour ago', severity: 'info' },
-  { id: 2, type: 'risk', message: 'Portfolio volatility increased 15%', time: '4 hours ago', severity: 'warning' },
-  { id: 3, type: 'dividend', message: 'MSFT dividend payment received', time: '1 day ago', severity: 'success' },
-];
 
 export default function DashboardPage() {
   const { openDetailsPanel } = useShell();
+  const { investments, transactions, stats, riskMetrics, isLoading, refreshPrices, isOnline } = usePortfolio();
+
+  // Generate performance data based on portfolio (simulated historical)
+  const performanceData = useMemo(() => {
+    const baseValue = stats.totalInvested || 100000;
+    const currentValue = stats.totalValue || 100000;
+    const growthRate = (currentValue / baseValue - 1) / 7; // Spread growth over 7 periods
+    
+    return Array.from({ length: 7 }, (_, i) => {
+      const month = new Date();
+      month.setMonth(month.getMonth() - (6 - i));
+      const progress = i / 6;
+      const value = baseValue * (1 + growthRate * i * 1.1);
+      const benchmark = baseValue * (1 + growthRate * i * 0.85);
+      
+      return {
+        date: month.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+        value: Math.round(value),
+        benchmark: Math.round(benchmark),
+      };
+    });
+  }, [stats.totalInvested, stats.totalValue]);
+
+  // Top positions from real holdings
+  const topPositions = useMemo(() => {
+    return [...investments]
+      .map(inv => ({
+        symbol: inv.symbol,
+        name: inv.name,
+        value: inv.quantity * inv.currentPrice,
+        weight: stats.totalValue > 0 
+          ? (inv.quantity * inv.currentPrice / stats.totalValue) * 100 
+          : 0,
+        change: inv.dayChangePercent || 0,
+        quantity: inv.quantity,
+        price: inv.currentPrice,
+        costBasis: inv.purchasePrice * inv.quantity,
+        gain: (inv.currentPrice - inv.purchasePrice) * inv.quantity,
+        gainPercent: ((inv.currentPrice - inv.purchasePrice) / inv.purchasePrice) * 100,
+        sector: inv.sector || 'Other',
+        dayChange: inv.dayChange || 0,
+        dayChangePercent: inv.dayChangePercent || 0,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [investments, stats.totalValue]);
+
+  // Sector allocation from real holdings
+  const sectorAllocation = useMemo(() => {
+    const sectorTotals: Record<string, number> = {};
+    
+    investments.forEach(inv => {
+      const sector = inv.sector || 'Other';
+      const value = inv.quantity * inv.currentPrice;
+      sectorTotals[sector] = (sectorTotals[sector] || 0) + value;
+    });
+
+    return Object.entries(sectorTotals)
+      .map(([name, value]) => ({
+        name,
+        value: stats.totalValue > 0 ? Math.round((value / stats.totalValue) * 100) : 0,
+        color: SECTOR_COLORS[name] || '#6e7681',
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [investments, stats.totalValue]);
+
+  // Recent activity from real transactions
+  const recentActivity = useMemo(() => {
+    const investmentLookup = new Map(investments.map(inv => [inv.id, inv]));
+    
+    return [...transactions]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5)
+      .map(t => {
+        const inv = investmentLookup.get(t.investmentId);
+        const daysDiff = Math.floor((Date.now() - new Date(t.date).getTime()) / (1000 * 60 * 60 * 24));
+        const timeAgo = daysDiff === 0 ? 'Today' : daysDiff === 1 ? 'Yesterday' : `${daysDiff} days ago`;
+        
+        return {
+          type: t.type.toUpperCase(),
+          symbol: inv?.symbol || '???',
+          shares: t.quantity,
+          price: t.price,
+          amount: t.quantity * t.price,
+          time: timeAgo,
+        };
+      });
+  }, [transactions, investments]);
+
+  // Alerts based on portfolio state
+  const alerts = useMemo(() => {
+    const alertList: { id: number; type: string; message: string; time: string; severity: string }[] = [];
+    let alertId = 1;
+    
+    // High volatility alert
+    if (riskMetrics.portfolioVolatility > 25) {
+      alertList.push({
+        id: alertId++,
+        type: 'risk',
+        message: `Portfolio volatility is high (${riskMetrics.portfolioVolatility.toFixed(1)}%)`,
+        time: 'Now',
+        severity: 'warning',
+      });
+    }
+    
+    // Large day change alert
+    if (Math.abs(stats.dayChangePercentage || 0) > 3) {
+      alertList.push({
+        id: alertId++,
+        type: 'price',
+        message: `Portfolio moved ${stats.dayChangePercentage?.toFixed(2)}% today`,
+        time: 'Today',
+        severity: stats.dayChangePercentage! > 0 ? 'info' : 'warning',
+      });
+    }
+    
+    // Best performer alert
+    if (stats.bestPerformer && stats.bestPerformer.percentage > 20) {
+      alertList.push({
+        id: alertId++,
+        type: 'performer',
+        message: `${stats.bestPerformer.name} up ${stats.bestPerformer.percentage.toFixed(1)}%`,
+        time: 'All time',
+        severity: 'success',
+      });
+    }
+    
+    // Low diversification alert
+    if (stats.diversificationScore < 40) {
+      alertList.push({
+        id: alertId++,
+        type: 'risk',
+        message: 'Portfolio diversification is low',
+        time: 'Now',
+        severity: 'warning',
+      });
+    }
+    
+    // Worst performer alert
+    if (stats.worstPerformer && stats.worstPerformer.percentage < -10) {
+      alertList.push({
+        id: alertId++,
+        type: 'performer',
+        message: `${stats.worstPerformer.name} down ${Math.abs(stats.worstPerformer.percentage).toFixed(1)}%`,
+        time: 'All time',
+        severity: 'danger',
+      });
+    }
+    
+    return alertList.slice(0, 3);
+  }, [riskMetrics, stats]);
+
+  const formatCurrency = (value: number) => {
+    if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
+    if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
+    return `$${value.toFixed(2)}`;
+  };
 
   return (
     <div className="dashboard">
+      {/* Connection status banner */}
+      {!isOnline && (
+        <div className="dashboard__offline-banner">
+          <Activity size={14} />
+          Offline mode - data may not be current
+        </div>
+      )}
+
       {/* KPI Grid */}
       <section className="dashboard__kpis">
+        <div className="dashboard__kpis-header">
+          <h2 className="sr-only">Portfolio Overview</h2>
+          <button 
+            className="btn btn--ghost btn--sm" 
+            onClick={() => refreshPrices()}
+            disabled={isLoading}
+            title="Refresh prices"
+          >
+            <RefreshCw size={14} className={isLoading ? 'spin' : ''} />
+            Refresh
+          </button>
+        </div>
         <KPIGrid columns={4}>
           <KPICard
             label="Portfolio Value"
-            value={mockKPIs.totalValue}
+            value={stats.totalValue}
             format="currency"
-            change={mockKPIs.dayChangePercent}
+            change={stats.dayChangePercentage}
             changeLabel="today"
-            sparkline={[1320, 1380, 1350, 1420, 1480, 1520, 1548]}
+            sparkline={performanceData.map(d => d.value / 10000)}
           />
           <KPICard
             label="Total Return"
-            value={mockKPIs.totalGainPercent}
+            value={stats.gainLossPercentage}
             format="percent"
-            prefix="+"
-            change={mockKPIs.totalGainPercent}
-            variant="highlight"
+            prefix={stats.gainLossPercentage >= 0 ? '+' : ''}
+            change={stats.gainLossPercentage}
+            variant={stats.gainLossPercentage >= 0 ? 'highlight' : 'danger'}
           />
           <KPICard
             label="Today's Change"
-            value={mockKPIs.dayChange}
+            value={stats.dayChange || 0}
             format="currency"
-            change={mockKPIs.dayChangePercent}
+            change={stats.dayChangePercentage}
           />
           <KPICard
             label="Positions"
-            value={mockKPIs.positions}
+            value={investments.length}
             suffix=" holdings"
           />
         </KPIGrid>
@@ -128,7 +272,7 @@ export default function DashboardPage() {
           <div className="card__header">
             <div>
               <h2 className="card__title">Performance</h2>
-              <p className="card__subtitle">Portfolio vs S&P 500</p>
+              <p className="card__subtitle">Portfolio vs Benchmark</p>
             </div>
             <Link to="/analytics/performance" className="card__link">
               View Details <ChevronRight size={14} />
@@ -137,7 +281,7 @@ export default function DashboardPage() {
           <div className="card__body">
             <div className="dashboard__chart-container">
               <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={mockPerformanceData}>
+                <AreaChart data={performanceData}>
                   <defs>
                     <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#58a6ff" stopOpacity={0.3} />
@@ -154,7 +298,8 @@ export default function DashboardPage() {
                     axisLine={false}
                     tickLine={false}
                     tick={{ fill: '#6e7681', fontSize: 11 }}
-                    tickFormatter={(value) => `$${(value / 1000000).toFixed(1)}M`}
+                    tickFormatter={(value) => formatCurrency(value)}
+                    width={70}
                   />
                   <Tooltip
                     contentStyle={{
@@ -163,6 +308,7 @@ export default function DashboardPage() {
                       borderRadius: '8px',
                     }}
                     labelStyle={{ color: '#e6edf3' }}
+                    formatter={(value: number) => [formatCurrency(value), '']}
                   />
                   <Area
                     type="monotone"
@@ -179,7 +325,7 @@ export default function DashboardPage() {
                     strokeWidth={1.5}
                     strokeDasharray="4 4"
                     dot={false}
-                    name="S&P 500"
+                    name="Benchmark"
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -196,37 +342,48 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="card__body">
-            <div className="dashboard__allocation-chart">
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie
-                    data={mockSectorAllocation}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={75}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {mockSectorAllocation.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="dashboard__allocation-legend">
-              {mockSectorAllocation.map((sector) => (
-                <div key={sector.name} className="dashboard__allocation-item">
-                  <span 
-                    className="dashboard__allocation-dot" 
-                    style={{ backgroundColor: sector.color }}
-                  />
-                  <span className="dashboard__allocation-name">{sector.name}</span>
-                  <span className="dashboard__allocation-value">{sector.value}%</span>
+            {sectorAllocation.length > 0 ? (
+              <>
+                <div className="dashboard__allocation-chart">
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie
+                        data={sectorAllocation}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={75}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {sectorAllocation.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+                <div className="dashboard__allocation-legend">
+                  {sectorAllocation.map((sector) => (
+                    <div key={sector.name} className="dashboard__allocation-item">
+                      <span 
+                        className="dashboard__allocation-dot" 
+                        style={{ backgroundColor: sector.color }}
+                      />
+                      <span className="dashboard__allocation-name">{sector.name}</span>
+                      <span className="dashboard__allocation-value">{sector.value}%</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="dashboard__empty">
+                <p>No holdings to display</p>
+                <Link to="/portfolios/overview" className="btn btn--primary btn--sm">
+                  Add Investments
+                </Link>
+              </div>
+            )}
           </div>
         </section>
 
@@ -242,52 +399,45 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="card__body card__body--flush">
-            <table className="dashboard__positions-table">
-              <thead>
-                <tr>
-                  <th>Symbol</th>
-                  <th>Value</th>
-                  <th>Weight</th>
-                  <th>Change</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockTopPositions.map((position) => (
-                  <tr 
-                    key={position.symbol}
-                    onClick={() => openDetailsPanel({
-                      type: 'position',
-                      data: {
-                        symbol: position.symbol,
-                        name: position.name,
-                        quantity: 100,
-                        price: position.value / 100,
-                        value: position.value,
-                        costBasis: position.value * 0.85,
-                        gain: position.value * 0.15,
-                        gainPercent: 15,
-                        dayChange: position.change * 10,
-                        dayChangePercent: position.change,
-                        weight: position.weight,
-                        sector: 'Technology',
-                      }
-                    })}
-                  >
-                    <td>
-                      <div className="dashboard__position-symbol">
-                        <span className="dashboard__position-ticker">{position.symbol}</span>
-                        <span className="dashboard__position-name">{position.name}</span>
-                      </div>
-                    </td>
-                    <td>${(position.value / 1000).toFixed(0)}K</td>
-                    <td>{position.weight}%</td>
-                    <td className={position.change >= 0 ? 'text-positive' : 'text-negative'}>
-                      {position.change >= 0 ? '+' : ''}{position.change}%
-                    </td>
+            {topPositions.length > 0 ? (
+              <table className="dashboard__positions-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Value</th>
+                    <th>Weight</th>
+                    <th>Change</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {topPositions.map((position) => (
+                    <tr 
+                      key={position.symbol}
+                      onClick={() => openDetailsPanel({
+                        type: 'position',
+                        data: position
+                      })}
+                    >
+                      <td>
+                        <div className="dashboard__position-symbol">
+                          <span className="dashboard__position-ticker">{position.symbol}</span>
+                          <span className="dashboard__position-name">{position.name}</span>
+                        </div>
+                      </td>
+                      <td>{formatCurrency(position.value)}</td>
+                      <td>{position.weight.toFixed(1)}%</td>
+                      <td className={position.change >= 0 ? 'text-positive' : 'text-negative'}>
+                        {position.change >= 0 ? '+' : ''}{position.change.toFixed(2)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="dashboard__empty">
+                <p>No positions yet</p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -303,27 +453,34 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="card__body card__body--flush">
-            <div className="dashboard__activity-list">
-              {mockRecentActivity.map((activity, index) => (
-                <div key={index} className="dashboard__activity-item">
-                  <div className={`dashboard__activity-icon dashboard__activity-icon--${activity.type.toLowerCase()}`}>
-                    {activity.type === 'BUY' && <ArrowUpRight size={16} />}
-                    {activity.type === 'SELL' && <ArrowDownRight size={16} />}
-                    {activity.type === 'DIVIDEND' && <DollarSign size={16} />}
+            {recentActivity.length > 0 ? (
+              <div className="dashboard__activity-list">
+                {recentActivity.map((activity, index) => (
+                  <div key={index} className="dashboard__activity-item">
+                    <div className={`dashboard__activity-icon dashboard__activity-icon--${activity.type.toLowerCase()}`}>
+                      {activity.type === 'BUY' && <ArrowUpRight size={16} />}
+                      {activity.type === 'SELL' && <ArrowDownRight size={16} />}
+                      {activity.type === 'DIVIDEND' && <Coins size={16} />}
+                      {!['BUY', 'SELL', 'DIVIDEND'].includes(activity.type) && <Activity size={16} />}
+                    </div>
+                    <div className="dashboard__activity-content">
+                      <span className="dashboard__activity-type">{activity.type}</span>
+                      <span className="dashboard__activity-detail">
+                        {activity.type === 'DIVIDEND' 
+                          ? `${activity.symbol} - ${formatCurrency(activity.amount)}`
+                          : `${activity.shares} ${activity.symbol} @ $${activity.price.toFixed(2)}`
+                        }
+                      </span>
+                    </div>
+                    <span className="dashboard__activity-time">{activity.time}</span>
                   </div>
-                  <div className="dashboard__activity-content">
-                    <span className="dashboard__activity-type">{activity.type}</span>
-                    <span className="dashboard__activity-detail">
-                      {activity.type === 'DIVIDEND' 
-                        ? `${activity.symbol} - $${activity.amount}`
-                        : `${activity.shares} ${activity.symbol} @ $${activity.price}`
-                      }
-                    </span>
-                  </div>
-                  <span className="dashboard__activity-time">{activity.time}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="dashboard__empty">
+                <p>No transactions yet</p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -332,24 +489,30 @@ export default function DashboardPage() {
           <div className="card__header">
             <div>
               <h2 className="card__title">Alerts</h2>
-              <p className="card__subtitle">{mockAlerts.length} active</p>
+              <p className="card__subtitle">{alerts.length} active</p>
             </div>
             <Link to="/alerts" className="card__link">
               Manage <ChevronRight size={14} />
             </Link>
           </div>
           <div className="card__body card__body--flush">
-            <div className="dashboard__alerts-list">
-              {mockAlerts.map((alert) => (
-                <div key={alert.id} className={`dashboard__alert dashboard__alert--${alert.severity}`}>
-                  <Bell size={16} className="dashboard__alert-icon" />
-                  <div className="dashboard__alert-content">
-                    <span className="dashboard__alert-message">{alert.message}</span>
-                    <span className="dashboard__alert-time">{alert.time}</span>
+            {alerts.length > 0 ? (
+              <div className="dashboard__alerts-list">
+                {alerts.map((alert) => (
+                  <div key={alert.id} className={`dashboard__alert dashboard__alert--${alert.severity}`}>
+                    <Bell size={16} className="dashboard__alert-icon" />
+                    <div className="dashboard__alert-content">
+                      <span className="dashboard__alert-message">{alert.message}</span>
+                      <span className="dashboard__alert-time">{alert.time}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="dashboard__empty">
+                <p>No alerts</p>
+              </div>
+            )}
           </div>
         </section>
       </div>

@@ -21,7 +21,7 @@ const SCENARIOS = [
     name: 'Market Crash',
     description: '2008-style financial crisis with broad market selloff',
     icon: TrendingDown,
-    impact: { stock: -0.40, etf: -0.35, bond: -0.10, crypto: -0.60, 'mutual-fund': -0.30, other: -0.25 },
+    impact: { stock: -0.40, etf: -0.35, bond: -0.10, crypto: -0.60, mutual_fund: -0.30, other: -0.25 },
     color: '#f85149',
   },
   {
@@ -29,7 +29,7 @@ const SCENARIOS = [
     name: 'Recession',
     description: 'Economic slowdown with moderate market decline',
     icon: TrendingDown,
-    impact: { stock: -0.20, etf: -0.18, bond: 0.05, crypto: -0.35, 'mutual-fund': -0.15, other: -0.10 },
+    impact: { stock: -0.20, etf: -0.18, bond: 0.05, crypto: -0.35, mutual_fund: -0.15, other: -0.10 },
     color: '#d29922',
   },
   {
@@ -37,7 +37,7 @@ const SCENARIOS = [
     name: 'High Inflation',
     description: 'Sustained inflation above 8% with Fed rate hikes',
     icon: AlertTriangle,
-    impact: { stock: -0.15, etf: -0.12, bond: -0.15, crypto: -0.25, 'mutual-fund': -0.10, other: 0.05 },
+    impact: { stock: -0.15, etf: -0.12, bond: -0.15, crypto: -0.25, mutual_fund: -0.10, other: 0.05 },
     color: '#f97316',
   },
   {
@@ -45,7 +45,7 @@ const SCENARIOS = [
     name: 'Tech Bubble Burst',
     description: 'Tech sector correction similar to 2000 dot-com crash',
     icon: TrendingDown,
-    impact: { stock: -0.35, etf: -0.25, bond: 0.02, crypto: -0.50, 'mutual-fund': -0.20, other: -0.05 },
+    impact: { stock: -0.35, etf: -0.25, bond: 0.02, crypto: -0.50, mutual_fund: -0.20, other: -0.05 },
     color: '#a855f7',
   },
   {
@@ -53,7 +53,7 @@ const SCENARIOS = [
     name: 'Bull Market',
     description: 'Strong economic growth with market rally',
     icon: TrendingUp,
-    impact: { stock: 0.25, etf: 0.22, bond: -0.02, crypto: 0.50, 'mutual-fund': 0.18, other: 0.10 },
+    impact: { stock: 0.25, etf: 0.22, bond: -0.02, crypto: 0.50, mutual_fund: 0.18, other: 0.10 },
     color: '#3fb950',
   },
   {
@@ -61,7 +61,7 @@ const SCENARIOS = [
     name: 'Crypto Winter',
     description: 'Severe cryptocurrency market downturn',
     icon: TrendingDown,
-    impact: { stock: 0.02, etf: 0.01, bond: 0.01, crypto: -0.75, 'mutual-fund': 0.02, other: 0 },
+    impact: { stock: 0.02, etf: 0.01, bond: 0.01, crypto: -0.75, mutual_fund: 0.02, other: 0 },
     color: '#58a6ff',
   },
 ];

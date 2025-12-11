@@ -5,17 +5,18 @@
  */
 
 import { useState, useMemo } from 'react';
-import { Plus, Download, Filter, ArrowUpRight, ArrowDownRight, Coins, Search } from 'lucide-react';
+import { Plus, Download, Filter, ArrowUpRight, ArrowDownRight, Coins, Search, Split } from 'lucide-react';
 import { usePortfolio } from '../contexts/PortfolioContext';
 import { DataTable } from '../components/ui';
 import { ColumnDef } from '@tanstack/react-table';
 import type { Transaction } from '../types';
 import './pages.css';
 
-const TYPE_CONFIG = {
+const TYPE_CONFIG: Record<string, { icon: typeof ArrowUpRight; color: string; label: string }> = {
   buy: { icon: ArrowUpRight, color: '#3fb950', label: 'Buy' },
   sell: { icon: ArrowDownRight, color: '#f85149', label: 'Sell' },
   dividend: { icon: Coins, color: '#58a6ff', label: 'Dividend' },
+  split: { icon: Split, color: '#a371f7', label: 'Split' },
 };
 
 export default function TransactionsPage() {
@@ -40,7 +41,7 @@ export default function TransactionsPage() {
         ...t,
         investmentName: investmentLookup[t.investmentId]?.name || 'Unknown',
         symbol: investmentLookup[t.investmentId]?.symbol || '???',
-        total: t.quantity * t.price + (t.fees || 0),
+        total: t.quantity * t.price,
       }))
       .filter(t => {
         const matchesSearch = 
@@ -134,15 +135,6 @@ export default function TransactionsPage() {
       },
     },
     {
-      id: 'fees',
-      header: 'Fees',
-      accessorKey: 'fees',
-      cell: (info) => {
-        const row = info.row.original;
-        return row.fees ? `$${row.fees.toFixed(2)}` : '-';
-      },
-    },
-    {
       id: 'total',
       header: 'Total',
       accessorKey: 'total',
@@ -172,7 +164,7 @@ export default function TransactionsPage() {
   ];
 
   const exportToCSV = () => {
-    const headers = ['Date', 'Type', 'Symbol', 'Name', 'Quantity', 'Price', 'Fees', 'Total', 'Notes'];
+    const headers = ['Date', 'Type', 'Symbol', 'Name', 'Quantity', 'Price', 'Total', 'Notes'];
     const rows = filteredTransactions.map(t => [
       t.date,
       t.type,
@@ -180,7 +172,6 @@ export default function TransactionsPage() {
       t.investmentName,
       t.quantity,
       t.price,
-      t.fees || 0,
       t.total,
       t.notes || '',
     ]);

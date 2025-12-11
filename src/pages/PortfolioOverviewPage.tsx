@@ -311,10 +311,19 @@ export default function PortfolioOverviewPage() {
 
 function AddInvestmentModal({ onClose }: { onClose: () => void }) {
   const { addInvestment } = usePortfolio();
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    symbol: string;
+    name: string;
+    type: 'stock' | 'etf' | 'bond' | 'crypto' | 'mutual_fund' | 'other';
+    quantity: string;
+    purchasePrice: string;
+    currentPrice: string;
+    purchaseDate: string;
+    sector: string;
+  }>({
     symbol: '',
     name: '',
-    type: 'stock' as const,
+    type: 'stock',
     quantity: '',
     purchasePrice: '',
     currentPrice: '',
@@ -327,10 +336,9 @@ function AddInvestmentModal({ onClose }: { onClose: () => void }) {
     addInvestment({
       symbol: form.symbol.toUpperCase(),
       name: form.name,
-      type: form.type,
+      type: form.type as 'stock' | 'etf' | 'bond' | 'crypto' | 'mutual_fund' | 'other',
       quantity: parseFloat(form.quantity),
       purchasePrice: parseFloat(form.purchasePrice),
-      currentPrice: parseFloat(form.currentPrice || form.purchasePrice),
       purchaseDate: form.purchaseDate,
       sector: form.sector || undefined,
     });
@@ -374,13 +382,13 @@ function AddInvestmentModal({ onClose }: { onClose: () => void }) {
                 <select
                   className="form-select"
                   value={form.type}
-                  onChange={e => setForm({ ...form, type: e.target.value as 'stock' | 'etf' | 'bond' | 'crypto' | 'mutual-fund' | 'other' })}
+                  onChange={e => setForm({ ...form, type: e.target.value as 'stock' | 'etf' | 'bond' | 'crypto' | 'mutual_fund' | 'other' })}
                 >
                   <option value="stock">Stock</option>
                   <option value="etf">ETF</option>
                   <option value="bond">Bond</option>
                   <option value="crypto">Crypto</option>
-                  <option value="mutual-fund">Mutual Fund</option>
+                  <option value="mutual_fund">Mutual Fund</option>
                   <option value="other">Other</option>
                 </select>
               </div>

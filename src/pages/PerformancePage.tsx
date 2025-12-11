@@ -144,33 +144,33 @@ export default function PerformancePage() {
             label="Total Return"
             value={performanceMetrics.totalReturn}
             format="percent"
-            icon={TrendingUp}
+            icon={<TrendingUp size={18} />}
             variant={performanceMetrics.totalReturn >= 0 ? 'highlight' : 'danger'}
           />
           <KPICard
             label="Annualized Return"
             value={performanceMetrics.annualizedReturn}
             format="percent"
-            icon={Target}
+            icon={<Target size={18} />}
           />
           <KPICard
             label="Benchmark Return"
             value={performanceMetrics.benchmarkReturn}
             format="percent"
-            icon={TrendingUp}
+            icon={<TrendingUp size={18} />}
           />
           <KPICard
             label="Alpha"
             value={performanceMetrics.alpha}
             format="percent"
-            icon={Award}
+            icon={<Award size={18} />}
             variant={performanceMetrics.alpha >= 0 ? 'highlight' : 'danger'}
           />
           <KPICard
             label="Max Drawdown"
             value={-performanceMetrics.maxDrawdown}
             format="percent"
-            icon={TrendingDown}
+            icon={<TrendingDown size={18} />}
             variant="danger"
           />
         </KPIGrid>

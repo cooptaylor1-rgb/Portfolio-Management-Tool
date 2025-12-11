@@ -45,10 +45,17 @@ export function Toast({ type, message, description, onClose }: ToastProps) {
 }
 
 interface ToastContainerProps {
-  children: ReactNode
+  children?: ReactNode;
+  toasts?: Array<{
+    id: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    message: string;
+    description?: string;
+  }>;
+  onDismiss?: (id: string) => void;
 }
 
-export function ToastContainer({ children }: ToastContainerProps) {
+export function ToastContainer({ children, toasts, onDismiss }: ToastContainerProps) {
   return (
     <div
       style={{
@@ -62,6 +69,15 @@ export function ToastContainer({ children }: ToastContainerProps) {
       }}
     >
       {children}
+      {toasts?.map(toast => (
+        <Toast
+          key={toast.id}
+          type={toast.type}
+          message={toast.message}
+          description={toast.description}
+          onClose={onDismiss ? () => onDismiss(toast.id) : undefined}
+        />
+      ))}
     </div>
   )
 }

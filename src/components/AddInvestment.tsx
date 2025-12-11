@@ -204,7 +204,7 @@ export default function AddInvestment({ onAdd, onCancel }: AddInvestmentProps) {
           <Button
             type="submit"
             variant="primary"
-            loading={isSubmitting}
+            isLoading={isSubmitting}
           >
             Add Investment
           </Button>

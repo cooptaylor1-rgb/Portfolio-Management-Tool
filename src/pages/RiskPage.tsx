@@ -111,31 +111,31 @@ export default function RiskPage() {
           label="Portfolio Volatility"
           value={riskMetrics.portfolioVolatility}
           format="percent"
-          icon={Activity}
+          icon={<Activity size={18} />}
         />
         <KPICard
           label="Sharpe Ratio"
           value={riskMetrics.sharpeRatio}
-          icon={Target}
+          icon={<Target size={18} />}
           variant={riskMetrics.sharpeRatio >= 1 ? 'highlight' : 'default'}
         />
         <KPICard
           label="Beta"
           value={riskMetrics.beta}
-          icon={Gauge}
+          icon={<Gauge size={18} />}
         />
         <KPICard
           label="Max Drawdown"
           value={-riskMetrics.maxDrawdown}
           format="percent"
-          icon={TrendingDown}
+          icon={<TrendingDown size={18} />}
           variant="danger"
         />
         <KPICard
           label="Value at Risk (95%)"
           value={riskMetrics.valueAtRisk}
           format="currency"
-          icon={AlertTriangle}
+          icon={<AlertTriangle size={18} />}
           variant="warning"
         />
       </KPIGrid>

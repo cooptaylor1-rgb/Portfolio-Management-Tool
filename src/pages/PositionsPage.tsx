@@ -6,13 +6,15 @@
  * - Column customization
  * - Export functionality
  * - Click to open details panel
+ * - Real data from PortfolioContext
  */
 
-import { useMemo } from 'react';
-import { Plus, Download, Filter } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Plus, Download, Filter, RefreshCw } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { DataTable, CellFormatters } from '../components/ui';
 import { useShell } from '../layouts';
+import { usePortfolio } from '../contexts/PortfolioContext';
 import './pages.css';
 
 interface Position {
@@ -29,24 +31,42 @@ interface Position {
   dayChangePercent: number;
   weight: number;
   sector: string;
+  type: string;
 }
-
-// Mock data - replace with API
-const mockPositions: Position[] = [
-  { id: '1', symbol: 'AAPL', name: 'Apple Inc.', quantity: 150, price: 195.50, value: 29325, costBasis: 24500, gain: 4825, gainPercent: 19.69, dayChange: 2.34, dayChangePercent: 1.21, weight: 15.8, sector: 'Technology' },
-  { id: '2', symbol: 'MSFT', name: 'Microsoft Corp.', quantity: 85, price: 420.30, value: 35725.50, costBasis: 30000, gain: 5725.50, gainPercent: 19.08, dayChange: -1.20, dayChangePercent: -0.28, weight: 12.8, sector: 'Technology' },
-  { id: '3', symbol: 'GOOGL', name: 'Alphabet Inc.', quantity: 45, price: 175.80, value: 7911, costBasis: 6500, gain: 1411, gainPercent: 21.71, dayChange: 3.45, dayChangePercent: 2.00, weight: 10.8, sector: 'Technology' },
-  { id: '4', symbol: 'AMZN', name: 'Amazon.com Inc.', quantity: 60, price: 185.20, value: 11112, costBasis: 9800, gain: 1312, gainPercent: 13.39, dayChange: -0.85, dayChangePercent: -0.46, weight: 9.4, sector: 'Consumer' },
-  { id: '5', symbol: 'NVDA', name: 'NVIDIA Corp.', quantity: 30, price: 875.50, value: 26265, costBasis: 18000, gain: 8265, gainPercent: 45.92, dayChange: 15.30, dayChangePercent: 1.78, weight: 8.7, sector: 'Technology' },
-  { id: '6', symbol: 'META', name: 'Meta Platforms Inc.', quantity: 40, price: 505.40, value: 20216, costBasis: 17500, gain: 2716, gainPercent: 15.52, dayChange: 8.20, dayChangePercent: 1.65, weight: 7.2, sector: 'Technology' },
-  { id: '7', symbol: 'JNJ', name: 'Johnson & Johnson', quantity: 70, price: 155.80, value: 10906, costBasis: 11200, gain: -294, gainPercent: -2.62, dayChange: 0.45, dayChangePercent: 0.29, weight: 5.5, sector: 'Healthcare' },
-  { id: '8', symbol: 'V', name: 'Visa Inc.', quantity: 35, price: 280.60, value: 9821, costBasis: 8400, gain: 1421, gainPercent: 16.92, dayChange: 1.80, dayChangePercent: 0.65, weight: 4.8, sector: 'Finance' },
-  { id: '9', symbol: 'UNH', name: 'UnitedHealth Group', quantity: 20, price: 520.30, value: 10406, costBasis: 9500, gain: 906, gainPercent: 9.54, dayChange: -3.20, dayChangePercent: -0.61, weight: 4.5, sector: 'Healthcare' },
-  { id: '10', symbol: 'HD', name: 'Home Depot Inc.', quantity: 25, price: 345.60, value: 8640, costBasis: 7800, gain: 840, gainPercent: 10.77, dayChange: 2.10, dayChangePercent: 0.61, weight: 3.8, sector: 'Consumer' },
-];
 
 export default function PositionsPage() {
   const { openDetailsPanel } = useShell();
+  const { investments, stats, isLoading, refreshPrices } = usePortfolio();
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  // Transform investments to positions format
+  const positions = useMemo<Position[]>(() => {
+    return investments.map(inv => ({
+      id: inv.id,
+      symbol: inv.symbol,
+      name: inv.name,
+      quantity: inv.quantity,
+      price: inv.currentPrice,
+      value: inv.quantity * inv.currentPrice,
+      costBasis: inv.quantity * inv.purchasePrice,
+      gain: (inv.currentPrice - inv.purchasePrice) * inv.quantity,
+      gainPercent: ((inv.currentPrice - inv.purchasePrice) / inv.purchasePrice) * 100,
+      dayChange: (inv.dayChange || 0) * inv.quantity,
+      dayChangePercent: inv.dayChangePercent || 0,
+      weight: stats.totalValue > 0 
+        ? (inv.quantity * inv.currentPrice / stats.totalValue) * 100 
+        : 0,
+      sector: inv.sector || 'Other',
+      type: inv.type,
+    }));
+  }, [investments, stats.totalValue]);
+
+  // Format currency for display
+  const formatCurrency = (value: number) => {
+    if (Math.abs(value) >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
+    if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(1)}K`;
+    return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   const columns = useMemo<ColumnDef<Position>[]>(() => [
     {
@@ -75,13 +95,13 @@ export default function PositionsPage() {
     {
       accessorKey: 'value',
       header: 'Value',
-      cell: ({ getValue }) => CellFormatters.currency(getValue() as number),
+      cell: ({ getValue }) => formatCurrency(getValue() as number),
       size: 120,
     },
     {
       accessorKey: 'costBasis',
       header: 'Cost Basis',
-      cell: ({ getValue }) => `$${(getValue() as number).toLocaleString()}`,
+      cell: ({ getValue }) => formatCurrency(getValue() as number),
       size: 120,
     },
     {
@@ -119,37 +139,83 @@ export default function PositionsPage() {
     });
   };
 
+  const handleExport = () => {
+    // Create CSV content
+    const headers = ['Symbol', 'Name', 'Shares', 'Price', 'Value', 'Cost Basis', 'Gain', 'Gain %', 'Weight', 'Sector'];
+    const rows = positions.map(p => [
+      p.symbol,
+      p.name,
+      p.quantity,
+      p.price.toFixed(2),
+      p.value.toFixed(2),
+      p.costBasis.toFixed(2),
+      p.gain.toFixed(2),
+      p.gainPercent.toFixed(2),
+      p.weight.toFixed(2),
+      p.sector,
+    ]);
+    
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `positions_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="page">
       <div className="page__header">
         <div className="page__title-group">
           <h1 className="page__title">Positions</h1>
-          <p className="page__subtitle">{mockPositions.length} holdings • $185,327 total value</p>
+          <p className="page__subtitle">
+            {positions.length} holdings • {formatCurrency(stats.totalValue)} total value
+          </p>
         </div>
         <div className="page__actions">
-          <button className="btn">
-            <Filter size={16} />
-            Filter
+          <button 
+            className="btn btn--ghost" 
+            onClick={() => refreshPrices()}
+            disabled={isLoading}
+          >
+            <RefreshCw size={16} className={isLoading ? 'spin' : ''} />
+            Refresh
           </button>
-          <button className="btn">
+          <button className="btn" onClick={handleExport}>
             <Download size={16} />
             Export
           </button>
-          <button className="btn btn--primary">
+          <button className="btn btn--primary" onClick={() => setShowAddModal(true)}>
             <Plus size={16} />
             Add Position
           </button>
         </div>
       </div>
 
-      <DataTable
-        data={mockPositions}
-        columns={columns}
-        searchPlaceholder="Search positions..."
-        onRowClick={handleRowClick}
-        pagination
-        pageSize={25}
-      />
+      {positions.length > 0 ? (
+        <DataTable
+          data={positions}
+          columns={columns}
+          searchPlaceholder="Search positions..."
+          onRowClick={handleRowClick}
+          pagination
+          pageSize={25}
+        />
+      ) : (
+        <div className="empty-state">
+          <div className="empty-state__icon">📊</div>
+          <h2 className="empty-state__title">No positions yet</h2>
+          <p className="empty-state__description">
+            Start building your portfolio by adding your first investment.
+          </p>
+          <button className="btn btn--primary" onClick={() => setShowAddModal(true)}>
+            <Plus size={16} />
+            Add Your First Position
+          </button>
+        </div>
+      )}
     </div>
   );
 }

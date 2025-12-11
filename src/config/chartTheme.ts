@@ -24,9 +24,13 @@ export const chartColors = {
   axis: '#52525b',
   text: '#a1a1aa',
   textPrimary: '#e4e4e7',
+  textSecondary: '#a1a1aa',
+  textTertiary: '#71717a',
   background: '#0a0a0b',
   tooltip: '#18181b',
   tooltipBorder: '#3f3f46',
+  border: '#3f3f46',
+  elevated: '#18181b',
 }
 
 export const chartPalette = [
