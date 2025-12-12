@@ -141,7 +141,8 @@ class CollaborationService {
         }))
       : [];
 
-    const investmentsList: Investment[] = Array.isArray(p?.investments) ? p.investments : [];
+    // This view only needs sharing metadata; backend investment rows use a different enum/value shape.
+    const investmentsList: Investment[] = [];
 
     return {
       id: p.id,

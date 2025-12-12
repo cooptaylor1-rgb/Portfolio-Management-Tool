@@ -17,7 +17,7 @@ interface UserRecord {
   email: string;
   password: string; // In production, this would be hashed
   name: string;
-  avatar?: string;
+  avatar?: string | null;
   createdAt: string;
   lastLogin?: string;
 }

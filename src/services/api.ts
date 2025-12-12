@@ -133,7 +133,7 @@ class ApiClient {
 
   // Auth endpoints
   async login(email: string, password: string) {
-    const response = await this.request<{ user: any; accessToken: string; refreshToken: string }>(
+    const response = await this.request<{ user: ApiUser; accessToken: string; refreshToken: string }>(
       '/auth/login',
       {
         method: 'POST',
@@ -150,7 +150,7 @@ class ApiClient {
   }
 
   async register(name: string, email: string, password: string) {
-    const response = await this.request<{ user: any; accessToken: string; refreshToken: string }>(
+    const response = await this.request<{ user: ApiUser; accessToken: string; refreshToken: string }>(
       '/auth/register',
       {
         method: 'POST',
@@ -167,7 +167,7 @@ class ApiClient {
   }
 
   async me() {
-    return this.request<{ user: any }>('/auth/me');
+    return this.request<{ user: ApiUser }>('/auth/me');
   }
 
   async logout() {
@@ -183,11 +183,11 @@ class ApiClient {
 
   // Portfolio endpoints
   async getPortfolios() {
-    return this.request<{ portfolios: any[] }>('/portfolios');
+    return this.request<{ portfolios: PortfolioSummary[] }>('/portfolios');
   }
 
   async getPortfolio(id: string) {
-    return this.request<{ portfolio: any }>(`/portfolios/${id}`);
+    return this.request<{ portfolio: PortfolioDetail }>(`/portfolios/${id}`);
   }
 
   async createPortfolio(data: { name: string; description?: string; isPublic?: boolean }) {
@@ -209,7 +209,7 @@ class ApiClient {
   }
 
   async sharePortfolio(portfolioId: string, email: string, permission: 'VIEW' | 'EDIT' | 'ADMIN') {
-    return this.request<{ share: any }>(`/portfolios/${portfolioId}/share`, {
+    return this.request<{ share: PortfolioShare }>(`/portfolios/${portfolioId}/share`, {
       method: 'POST',
       body: JSON.stringify({ email, permission }),
     });
@@ -222,16 +222,16 @@ class ApiClient {
   }
 
   async getPortfolioActivity(portfolioId: string, limit: number = 50) {
-    return this.request<{ activities: any[] }>(`/portfolios/${portfolioId}/activity?limit=${limit}`);
+    return this.request<{ activities: PortfolioActivityRow[] }>(`/portfolios/${portfolioId}/activity?limit=${limit}`);
   }
 
   async getUserActivity(limit: number = 50) {
-    return this.request<{ activities: any[] }>(`/portfolios/activity?limit=${limit}`);
+    return this.request<{ activities: PortfolioActivityRow[] }>(`/portfolios/activity?limit=${limit}`);
   }
 
   async searchUsers(query: string, limit: number = 10) {
     const params = new URLSearchParams({ q: query, limit: String(limit) });
-    return this.request<{ users: any[] }>(`/users/search?${params.toString()}`);
+    return this.request<{ users: ApiUser[] }>(`/users/search?${params.toString()}`);
   }
 
   // Investment endpoints
@@ -334,6 +334,14 @@ class ApiClient {
 }
 
 // Type definitions
+export interface ApiUser {
+  id: string;
+  email: string;
+  name: string;
+  avatar?: string | null;
+  createdAt: string;
+}
+
 export interface Portfolio {
   id: string;
   name: string;
@@ -343,6 +351,39 @@ export interface Portfolio {
   investments?: Investment[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PortfolioSummary extends Portfolio {
+  investmentCount?: number;
+  shareCount?: number;
+  permission?: 'OWNER' | 'VIEW' | 'EDIT' | 'ADMIN';
+  isOwner?: boolean;
+}
+
+export interface PortfolioShare {
+  portfolioId: string;
+  userId: string;
+  permission: 'VIEW' | 'EDIT' | 'ADMIN';
+  createdAt?: string;
+  user?: ApiUser;
+}
+
+export interface PortfolioDetail extends Portfolio {
+  investments?: Investment[];
+  shares?: PortfolioShare[];
+  permission?: 'OWNER' | 'VIEW' | 'EDIT' | 'ADMIN';
+  isOwner?: boolean;
+}
+
+export interface PortfolioActivityRow {
+  id: string;
+  portfolioId: string;
+  userId: string;
+  action: string;
+  details?: unknown;
+  createdAt: string;
+  user?: ApiUser;
+  portfolio?: { id: string; name: string };
 }
 
 export interface Investment {

@@ -281,7 +281,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  avatar?: string;
+  avatar?: string | null;
   createdAt: string;
   lastLogin?: string;
   preferences?: UserPreferences;
