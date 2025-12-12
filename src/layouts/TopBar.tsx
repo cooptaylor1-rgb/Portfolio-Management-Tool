@@ -111,6 +111,19 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed }: TopBarProps) {
     }
   };
 
+  const formatImportedFrom = (p: { importedFrom?: { sourceOwnerName?: string; sourceOwnerEmail?: string; exportedAt?: string } }) => {
+    const importedFrom = p.importedFrom;
+    if (!importedFrom) return null;
+
+    const who = importedFrom.sourceOwnerName || importedFrom.sourceOwnerEmail;
+    const when = importedFrom.exportedAt ? formatDateShort(importedFrom.exportedAt) : null;
+
+    if (!who && !when) return 'Imported portfolio';
+    if (who && when) return `Imported from ${who} • Exported ${when}`;
+    if (who) return `Imported from ${who}`;
+    return `Imported • Exported ${when}`;
+  };
+
   return (
     <header className="topbar">
       <div className="topbar__left">
@@ -162,17 +175,26 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed }: TopBarProps) {
 
             {showPortfolioMenu && (
               <div className="topbar__dropdown-menu topbar__user-menu">
-                {portfolios.map((p) => (
-                  <button
-                    key={p.id}
-                    className="topbar__menu-item"
-                    onClick={() => handlePortfolioSelect(p.id)}
-                    type="button"
-                    disabled={isPortfolioLoading}
-                  >
-                    {p.name}
-                  </button>
-                ))}
+                {portfolios.map((p) => {
+                  const importedMeta = formatImportedFrom(p);
+                  return (
+                    <button
+                      key={p.id}
+                      className="topbar__menu-item"
+                      onClick={() => handlePortfolioSelect(p.id)}
+                      type="button"
+                      disabled={isPortfolioLoading}
+                      aria-current={activePortfolio?.id === p.id ? 'true' : undefined}
+                    >
+                      <span className="topbar__menu-item-content">
+                        <span>{p.name}</span>
+                        {importedMeta && (
+                          <span className="topbar__menu-item-subtext">{importedMeta}</span>
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -341,6 +363,12 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed }: TopBarProps) {
       )}
     </header>
   );
+}
+
+function formatDateShort(value: string): string | null {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
 }
 
 function generateBreadcrumbs(pathname: string): Array<{ label: string; path: string }> {
