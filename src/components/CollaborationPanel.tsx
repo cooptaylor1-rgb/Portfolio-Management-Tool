@@ -154,7 +154,7 @@ export function CollaborationPanel() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Shared with:</span>
                   <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
-                    {portfolio.sharedWith.length} {portfolio.sharedWith.length === 1 ? 'user' : 'users'}
+                    {(portfolio.shareCount ?? portfolio.sharedWith.length)} {(portfolio.shareCount ?? portfolio.sharedWith.length) === 1 ? 'user' : 'users'}
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
@@ -384,10 +384,27 @@ function SharePortfolioModal({ portfolio, currentUserId, onClose, onUpdate }: {
   onClose: () => void;
   onUpdate: () => void;
 }) {
+  const [portfolioDetails, setPortfolioDetails] = useState<Portfolio>(portfolio);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedPermission, setSelectedPermission] = useState<'view' | 'edit' | 'admin'>('view');
   const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    collaborationService
+      .getPortfolio(portfolio.id)
+      .then((p) => {
+        if (mounted && p) setPortfolioDetails(p);
+      })
+      .catch(() => {
+        // If backend is unreachable, keep the summary portfolio.
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [portfolio.id]);
 
   const handleSearch = async () => {
     if (searchQuery.length < 2) return;
@@ -412,7 +429,8 @@ function SharePortfolioModal({ portfolio, currentUserId, onClose, onUpdate }: {
         permission: selectedPermission,
         addedAt: new Date().toISOString()
       };
-      await collaborationService.sharePortfolio(portfolio.id, sharedUser);
+      const updated = await collaborationService.sharePortfolio(portfolio.id, sharedUser);
+      setPortfolioDetails(updated);
       onUpdate();
       setSearchQuery('');
       setSearchResults([]);
@@ -425,7 +443,8 @@ function SharePortfolioModal({ portfolio, currentUserId, onClose, onUpdate }: {
     if (!window.confirm('Remove this user\'s access?')) return;
 
     try {
-      await collaborationService.removeSharedUser(portfolio.id, userId);
+      const updated = await collaborationService.removeSharedUser(portfolio.id, userId);
+      setPortfolioDetails(updated);
       onUpdate();
     } catch (error: any) {
       alert(error.message);
@@ -455,7 +474,7 @@ function SharePortfolioModal({ portfolio, currentUserId, onClose, onUpdate }: {
         overflow: 'auto'
       }}>
         <h3 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1.5rem' }}>
-          Share "{portfolio.name}"
+          Share "{portfolioDetails.name}"
         </h3>
 
         {/* Search Users */}
@@ -520,9 +539,9 @@ function SharePortfolioModal({ portfolio, currentUserId, onClose, onUpdate }: {
                   <button
                     onClick={() => handleShare(user.id, user.name, user.email)}
                     className="btn-small btn-primary"
-                    disabled={portfolio.sharedWith.some(u => u.userId === user.id)}
+                    disabled={portfolioDetails.sharedWith.some(u => u.userId === user.id)}
                   >
-                    {portfolio.sharedWith.some(u => u.userId === user.id) ? 'Already Shared' : 'Share'}
+                    {portfolioDetails.sharedWith.some(u => u.userId === user.id) ? 'Already Shared' : 'Share'}
                   </button>
                 </div>
               ))}
@@ -533,13 +552,13 @@ function SharePortfolioModal({ portfolio, currentUserId, onClose, onUpdate }: {
         {/* Current Shared Users */}
         <div style={{ marginBottom: '2rem' }}>
           <h4 style={{ color: 'var(--text-primary)', marginBottom: '1rem' }}>Shared With</h4>
-          {portfolio.sharedWith.length === 0 ? (
+          {portfolioDetails.sharedWith.length === 0 ? (
             <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '1rem' }}>
               Not shared with anyone yet
             </p>
           ) : (
             <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-              {portfolio.sharedWith.map(sharedUser => (
+              {portfolioDetails.sharedWith.map(sharedUser => (
                 <div
                   key={sharedUser.userId}
                   style={{

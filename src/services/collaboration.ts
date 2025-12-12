@@ -163,6 +163,7 @@ class CollaborationService {
     if (res.success && res.data?.portfolios) {
       return (res.data.portfolios as any[]).map((p) => {
         const investmentCount = typeof p.investmentCount === 'number' ? p.investmentCount : 0;
+        const shareCount = typeof p.shareCount === 'number' ? p.shareCount : undefined;
         return {
           id: p.id,
           name: p.name,
@@ -174,6 +175,7 @@ class CollaborationService {
           isPublic: !!p.isPublic,
           sharedWith: [],
           investmentCount,
+          shareCount,
           permission: p.permission,
           isOwner: !!p.isOwner,
         } as Portfolio;

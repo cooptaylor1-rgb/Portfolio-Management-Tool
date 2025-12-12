@@ -85,7 +85,7 @@ export async function portfolioRoutes(app: FastifyInstance) {
           select: { id: true, name: true, email: true },
         },
         _count: {
-          select: { investments: true },
+          select: { investments: true, shares: true },
         },
         shares: {
           where: { userId },
@@ -101,6 +101,7 @@ export async function portfolioRoutes(app: FastifyInstance) {
       isOwner: p.ownerId === userId,
       permission: p.ownerId === userId ? 'OWNER' : p.shares[0]?.permission,
       investmentCount: p._count.investments,
+      shareCount: p._count.shares,
       shares: undefined,
       _count: undefined,
     }));
