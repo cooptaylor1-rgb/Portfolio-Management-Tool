@@ -11,14 +11,15 @@
  *    - IEX Cloud: https://iexcloud.io/
  * 
  * 2. Store API keys in environment variables:
- *    - Create a .env file in the project root
- *    - Add: VITE_ALPHA_VANTAGE_KEY=your_key_here
- *    - Access via: import.meta.env.VITE_ALPHA_VANTAGE_KEY
+ *    - Configure provider keys server-side in backend/.env
+ *    - The frontend should call the backend proxy endpoints under /api/v2/market
  * 
  * 3. Implement the provider interfaces (see RealEquityDataProvider example below)
  * 
  * 4. Replace MockEquityProvider with RealEquityDataProvider in components
  */
+
+import { API_BASE } from './runtimeConfig'
 
 // ============================================================================
 // EQUITY DATA
@@ -469,111 +470,100 @@ export class MockThemeProvider implements ThemeDataProvider {
 // ============================================================================
 
 /**
- * Example implementation using Alpha Vantage API
- * 
- * SETUP:
- * 1. Get free API key from https://www.alphavantage.co/support/#api-key
- * 2. Add to .env: VITE_ALPHA_VANTAGE_KEY=your_key_here
- * 3. Replace MockEquityProvider with RealEquityDataProvider in your components
- * 
- * Note: Free tier has 5 calls/minute limit. Implement caching for production use.
+ * Example implementation using the backend market proxy.
+ *
+ * SETUP (server-side only):
+ * 1. Configure backend provider keys in backend/.env (e.g. ALPHA_VANTAGE_KEY)
+ * 2. The frontend calls the backend /api/v2/market endpoints (no secrets in browser)
  */
 export class RealEquityDataProvider implements EquityDataProvider {
-  private apiKey: string
-  private baseUrl = 'https://www.alphavantage.co/query'
-
-  constructor(apiKey?: string) {
-    this.apiKey = apiKey || import.meta.env.VITE_ALPHA_VANTAGE_KEY || ''
-    if (!this.apiKey) {
-      console.warn('Alpha Vantage API key not found. Set VITE_ALPHA_VANTAGE_KEY in .env file')
-    }
-  }
+  private apiBase = API_BASE
 
   async getQuote(symbol: string): Promise<EquityQuote> {
-    const url = `${this.baseUrl}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${this.apiKey}`
-    const response = await fetch(url)
-    const data = await response.json()
+    const response = await fetch(`${this.apiBase}/market/quote/${encodeURIComponent(symbol)}`)
+    const payload = await response.json().catch(() => null)
+    const quote = payload?.data
 
-    const quote = data['Global Quote']
-    if (!quote) {
+    if (!response.ok || !quote) {
       throw new Error(`Failed to fetch quote for ${symbol}`)
     }
 
     return {
-      symbol: quote['01. symbol'],
-      price: parseFloat(quote['05. price']),
-      change: parseFloat(quote['09. change']),
-      changePercent: parseFloat(quote['10. change percent'].replace('%', '')),
-      volume: parseInt(quote['06. volume']),
-      marketCap: 0, // Not provided by GLOBAL_QUOTE, need separate call
-      pe: 0, // Not provided by GLOBAL_QUOTE, need fundamental data call
-      lastUpdated: quote['07. latest trading day']
+      symbol: quote.symbol || symbol,
+      price: Number(quote.price || 0),
+      change: Number(quote.change || 0),
+      changePercent: Number(quote.changePercent || 0),
+      volume: Number(quote.volume || 0),
+      marketCap: 0,
+      pe: 0,
+      lastUpdated: quote.lastUpdated || new Date().toISOString(),
     }
   }
 
   async getFundamentals(symbol: string): Promise<EquityFundamentals> {
-    const url = `${this.baseUrl}?function=OVERVIEW&symbol=${symbol}&apikey=${this.apiKey}`
-    const response = await fetch(url)
-    const data = await response.json()
+    const response = await fetch(`${this.apiBase}/market/fundamentals/${encodeURIComponent(symbol)}`)
+    const payload = await response.json().catch(() => null)
+    const data = payload?.data
 
-    if (!data.Symbol) {
+    if (!response.ok || !data) {
       throw new Error(`Failed to fetch fundamentals for ${symbol}`)
     }
 
     return {
-      symbol: data.Symbol,
-      companyName: data.Name,
-      sector: data.Sector,
-      industry: data.Industry,
-      revenue: parseFloat(data.RevenueTTM || 0),
-      revenueGrowth: parseFloat(data.QuarterlyRevenueGrowthYOY || 0),
-      ebitda: parseFloat(data.EBITDA || 0),
-      ebitdaMargin: parseFloat(data.OperatingMarginTTM || 0),
-      netIncome: parseFloat(data.ProfitMargin || 0) * parseFloat(data.RevenueTTM || 0),
-      netMargin: parseFloat(data.ProfitMargin || 0),
-      eps: parseFloat(data.EPS || 0),
-      totalAssets: 0, // Not in OVERVIEW
-      totalLiabilities: 0,
-      totalEquity: parseFloat(data.BookValue || 0) * parseFloat(data.SharesOutstanding || 0),
-      cash: 0,
-      debt: 0,
-      roe: parseFloat(data.ReturnOnEquityTTM || 0),
-      roa: parseFloat(data.ReturnOnAssetsTTM || 0),
-      roic: 0, // Calculate from other metrics
-      pe: parseFloat(data.PERatio || 0),
-      pb: parseFloat(data.PriceToBookRatio || 0),
-      ps: parseFloat(data.PriceToSalesRatioTTM || 0),
-      evToEbitda: parseFloat(data.EVToEBITDA || 0),
-      fcfYield: 0 // Calculate separately
+      symbol: data.symbol || symbol,
+      companyName: data.companyName,
+      sector: data.sector,
+      industry: data.industry,
+      revenue: Number(data.revenue || 0),
+      revenueGrowth: Number(data.revenueGrowth || 0),
+      ebitda: Number(data.ebitda || 0),
+      ebitdaMargin: Number(data.ebitdaMargin || 0),
+      netIncome: Number(data.netIncome || 0),
+      netMargin: Number(data.netMargin || 0),
+      eps: Number(data.eps || 0),
+      totalAssets: Number(data.totalAssets || 0),
+      totalLiabilities: Number(data.totalLiabilities || 0),
+      totalEquity: Number(data.totalEquity || 0),
+      cash: Number(data.cash || 0),
+      debt: Number(data.debt || 0),
+      roe: Number(data.roe || 0),
+      roa: Number(data.roa || 0),
+      roic: Number(data.roic || 0),
+      pe: Number(data.pe || 0),
+      pb: Number(data.pb || 0),
+      ps: Number(data.ps || 0),
+      evToEbitda: Number(data.evToEbitda || 0),
+      fcfYield: Number(data.fcfYield || 0),
     }
   }
 
   async getHistoricalPrices(symbol: string, from: Date, to: Date): Promise<EquityHistoricalPrice[]> {
-    const url = `${this.baseUrl}?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbol}&outputsize=full&apikey=${this.apiKey}`
-    const response = await fetch(url)
-    const data = await response.json()
+    const params = new URLSearchParams({
+      from: from.toISOString(),
+      to: to.toISOString(),
+      interval: '1d',
+    })
 
-    const timeSeries = data['Time Series (Daily)']
-    if (!timeSeries) {
+    const response = await fetch(
+      `${this.apiBase}/market/historical/${encodeURIComponent(symbol)}?${params.toString()}`
+    )
+    const payload = await response.json().catch(() => null)
+    const series = payload?.data?.data
+
+    if (!response.ok || !Array.isArray(series)) {
       throw new Error(`Failed to fetch historical prices for ${symbol}`)
     }
 
-    const prices: EquityHistoricalPrice[] = []
-    for (const [date, values] of Object.entries(timeSeries)) {
-      const priceDate = new Date(date)
-      if (priceDate >= from && priceDate <= to) {
-        prices.push({
-          date,
-          open: parseFloat((values as any)['1. open']),
-          high: parseFloat((values as any)['2. high']),
-          low: parseFloat((values as any)['3. low']),
-          close: parseFloat((values as any)['4. close']),
-          volume: parseInt((values as any)['6. volume'])
-        })
-      }
-    }
-
-    return prices.sort((a, b) => a.date.localeCompare(b.date))
+    return series
+      .map((c: any) => ({
+        date: c.date,
+        open: Number(c.open || 0),
+        high: Number(c.high || 0),
+        low: Number(c.low || 0),
+        close: Number(c.close || 0),
+        volume: Number(c.volume || 0),
+      }))
+      .sort((a: any, b: any) => a.date.localeCompare(b.date))
   }
 }
 
@@ -586,16 +576,9 @@ export class RealEquityDataProvider implements EquityDataProvider {
  * Switch between Mock and Real based on environment or configuration
  */
 export function getEquityDataProvider(): EquityDataProvider {
-  // Check if we have a real API key configured
-  const apiKey = import.meta.env.VITE_ALPHA_VANTAGE_KEY
-  
-  if (apiKey && apiKey !== '') {
-    console.log('Using Real Equity Data Provider (Alpha Vantage)')
-    return new RealEquityDataProvider(apiKey)
-  }
-  
-  console.log('Using Mock Equity Data Provider')
-  return new MockEquityProvider()
+  // Prefer the backend proxy provider (it can use real keys server-side or mock data)
+  console.log('Using Real Equity Data Provider (Backend Proxy)')
+  return new RealEquityDataProvider()
 }
 
 export function getMacroDataProvider(): MacroDataProvider {

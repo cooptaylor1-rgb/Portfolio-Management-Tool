@@ -1,4 +1,5 @@
 import { User, LoginCredentials, RegisterCredentials } from '../types';
+import { api } from './api';
 
 // Simulated API delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -22,6 +23,18 @@ interface UserRecord {
 }
 
 class AuthService {
+  private isDemoToken(token: string): boolean {
+    return token.startsWith('token_');
+  }
+
+  private getBackendTokenFromStorage(): string | null {
+    try {
+      return localStorage.getItem('auth_token');
+    } catch {
+      return null;
+    }
+  }
+
   private getUsersDB(): UserRecord[] {
     const stored = localStorage.getItem(STORAGE_KEYS.USERS_DB);
     return stored ? JSON.parse(stored) : [];
@@ -42,32 +55,41 @@ class AuthService {
   }
 
   async login(credentials: LoginCredentials): Promise<{ user: User; token: string }> {
-    await delay(500); // Simulate network delay
+    // Prefer backend auth. Only fall back to demo/local auth on network failures.
+    const backend = await api.login(credentials.email, credentials.password);
+    if (backend.success && backend.data) {
+      const { user, accessToken } = backend.data;
+      try {
+        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+        localStorage.setItem(STORAGE_KEYS.TOKEN, accessToken);
+      } catch {
+        // ignore
+      }
+      return { user, token: accessToken };
+    }
 
+    if (backend.error?.code !== 'NETWORK_ERROR') {
+      throw new Error(backend.error?.message || 'Login failed');
+    }
+
+    // Demo fallback
+    await delay(500);
     const users = this.getUsersDB();
-    console.log('Login attempt for:', credentials.email);
-    console.log('Registered users:', users.map(u => ({ email: u.email, id: u.id })));
-    
     const userRecord = users.find(u => u.email.toLowerCase() === credentials.email.toLowerCase());
 
     if (!userRecord) {
-      console.log('User not found');
       throw new Error('Invalid email or password. If you just registered, try refreshing the page.');
     }
-    
     if (userRecord.password !== credentials.password) {
-      console.log('Password mismatch');
       throw new Error('Invalid email or password');
     }
 
-    // Update last login
     userRecord.lastLogin = new Date().toISOString();
     this.saveUsersDB(users);
 
     const token = this.generateToken(userRecord.id);
     const user = this.sanitizeUser(userRecord);
 
-    // Store in localStorage
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
     localStorage.setItem(STORAGE_KEYS.TOKEN, token);
 
@@ -75,28 +97,41 @@ class AuthService {
   }
 
   async register(credentials: RegisterCredentials): Promise<{ user: User; token: string }> {
-    await delay(500); // Simulate network delay
-
     if (credentials.password !== credentials.confirmPassword) {
       throw new Error('Passwords do not match');
     }
-
     if (credentials.password.length < 6) {
       throw new Error('Password must be at least 6 characters long');
     }
 
+    // Prefer backend registration. Only fall back to demo/local auth on network failures.
+    const backend = await api.register(credentials.name, credentials.email, credentials.password);
+    if (backend.success && backend.data) {
+      const { user, accessToken } = backend.data;
+      try {
+        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+        localStorage.setItem(STORAGE_KEYS.TOKEN, accessToken);
+      } catch {
+        // ignore
+      }
+      return { user, token: accessToken };
+    }
+
+    if (backend.error?.code !== 'NETWORK_ERROR') {
+      throw new Error(backend.error?.message || 'Registration failed');
+    }
+
+    // Demo fallback
+    await delay(500);
     const users = this.getUsersDB();
-    
-    // Check if user already exists
     if (users.some(u => u.email.toLowerCase() === credentials.email.toLowerCase())) {
       throw new Error('User with this email already exists');
     }
 
-    // Create new user
     const newUserRecord: UserRecord = {
       id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       email: credentials.email,
-      password: credentials.password, // In production, hash this!
+      password: credentials.password,
       name: credentials.name,
       createdAt: new Date().toISOString(),
       lastLogin: new Date().toISOString()
@@ -108,7 +143,6 @@ class AuthService {
     const token = this.generateToken(newUserRecord.id);
     const user = this.sanitizeUser(newUserRecord);
 
-    // Store in localStorage
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
     localStorage.setItem(STORAGE_KEYS.TOKEN, token);
 
@@ -116,9 +150,19 @@ class AuthService {
   }
 
   async logout(): Promise<void> {
-    await delay(200);
-    localStorage.removeItem(STORAGE_KEYS.USER);
-    localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    try {
+      await api.logout();
+    } catch {
+      // Ignore network errors; still clear local state.
+    }
+
+    await delay(50);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.USER);
+      localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    } catch {
+      // ignore
+    }
   }
 
   getCurrentUser(): User | null {
@@ -127,7 +171,7 @@ class AuthService {
   }
 
   getToken(): string | null {
-    return localStorage.getItem(STORAGE_KEYS.TOKEN);
+    return this.getBackendTokenFromStorage() || localStorage.getItem(STORAGE_KEYS.TOKEN);
   }
 
   isAuthenticated(): boolean {
@@ -135,9 +179,27 @@ class AuthService {
   }
 
   async validateToken(token: string): Promise<boolean> {
-    await delay(200);
-    // In production, validate with server
-    return token.startsWith('token_');
+    if (!token) return false;
+
+    // Demo tokens are local-only.
+    if (this.isDemoToken(token)) {
+      await delay(50);
+      return true;
+    }
+
+    // Backend tokens: validate by calling /auth/me.
+    const me = await api.me();
+    if (me.success && me.data?.user) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(me.data.user));
+        localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+      } catch {
+        // ignore
+      }
+      return true;
+    }
+
+    return false;
   }
 
   async updateProfile(userId: string, updates: Partial<User>): Promise<User> {

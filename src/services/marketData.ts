@@ -1,25 +1,23 @@
 // Market data service - FactSet API integration
 // FactSet provides institutional-grade financial data
 import { PerformanceData } from '../types';
+import { api } from './api';
+
+type NewsItem = {
+  id: string;
+  title: string;
+  source: string;
+  url: string;
+  publishedAt: string;
+  sentiment: 'positive' | 'neutral' | 'negative';
+  symbols: string[];
+};
 
 const CACHE_DURATION = 60000; // 1 minute cache
 const cache = new Map<string, { data: any; timestamp: number }>();
 
-// FactSet API Configuration
-// Get your API credentials from: https://developer.factset.com/
-const FACTSET_API_BASE = 'https://api.factset.com/content';
-const FACTSET_USERNAME = import.meta.env.VITE_FACTSET_USERNAME || '';
-const FACTSET_API_KEY = import.meta.env.VITE_FACTSET_API_KEY || '';
-
-// Helper function to create Basic Auth header for FactSet
-function getFactSetHeaders() {
-  const credentials = btoa(`${FACTSET_USERNAME}-serial:${FACTSET_API_KEY}`);
-  return {
-    'Authorization': `Basic ${credentials}`,
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  };
-}
+// NOTE: Provider secrets must remain server-side.
+// We proxy market data through the backend API under /api/v2/market.
 
 export async function fetchStockPrice(symbol: string): Promise<number | null> {
   const cacheKey = `price_${symbol}`;
@@ -30,31 +28,12 @@ export async function fetchStockPrice(symbol: string): Promise<number | null> {
   }
 
   try {
-    // Try FactSet API first
-    if (FACTSET_USERNAME && FACTSET_API_KEY) {
-      const response = await fetch(
-        `${FACTSET_API_BASE}/factset-prices/v1/prices`,
-        {
-          method: 'POST',
-          headers: getFactSetHeaders(),
-          body: JSON.stringify({
-            ids: [symbol],
-            startDate: new Date().toISOString().split('T')[0],
-            endDate: new Date().toISOString().split('T')[0],
-            frequency: 'D',
-            calendar: 'FIVEDAY'
-          })
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.data && data.data.length > 0 && data.data[0].price) {
-          const price = data.data[0].price;
-          cache.set(cacheKey, { data: price, timestamp: Date.now() });
-          return price;
-        }
-      }
+    // Prefer backend proxy (keeps provider secrets off the client)
+    const quoteRes = await api.getQuote(symbol);
+    const backendPrice = quoteRes.success ? quoteRes.data?.price : undefined;
+    if (typeof backendPrice === 'number') {
+      cache.set(cacheKey, { data: backendPrice, timestamp: Date.now() });
+      return backendPrice;
     }
 
     // Fallback to mock data if FactSet API is not configured or fails
@@ -74,10 +53,10 @@ export async function fetchStockPrice(symbol: string): Promise<number | null> {
     // Simulate realistic price fluctuations
     const basePrice = mockPrices[symbol] || 100;
     const fluctuation = (Math.random() - 0.5) * 2; // +/- 1%
-    const price = basePrice * (1 + fluctuation / 100);
+    const mockPrice = basePrice * (1 + fluctuation / 100);
 
-    cache.set(cacheKey, { data: price, timestamp: Date.now() });
-    return price;
+    cache.set(cacheKey, { data: mockPrice, timestamp: Date.now() });
+    return mockPrice;
   } catch (error) {
     console.error(`Error fetching price for ${symbol}:`, error);
     return null;
@@ -93,71 +72,39 @@ export async function fetchMarketData(symbol: string) {
   }
 
   try {
-    // Try FactSet Company Fundamentals API
-    if (FACTSET_USERNAME !== 'YOUR_FACTSET_USERNAME' && FACTSET_API_KEY !== 'YOUR_FACTSET_API_KEY') {
-      try {
-        // Fetch price data
-        const priceResponse = await fetch(
-          `${FACTSET_API_BASE}/factset-prices/v1/prices`,
-          {
-            method: 'POST',
-            headers: getFactSetHeaders(),
-            body: JSON.stringify({
-              ids: [symbol],
-              startDate: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday
-              endDate: new Date().toISOString().split('T')[0], // Today
-              frequency: 'D',
-              calendar: 'FIVEDAY'
-            })
-          }
-        );
+    // Prefer backend proxy endpoints
+    const [quoteRes, fundamentalsRes] = await Promise.all([
+      api.getQuote(symbol),
+      api.getFundamentals(symbol),
+    ]);
 
-        // Fetch company profile
-        const profileResponse = await fetch(
-          `${FACTSET_API_BASE}/factset-entity/v1/entity-profile`,
-          {
-            method: 'POST',
-            headers: getFactSetHeaders(),
-            body: JSON.stringify({
-              ids: [symbol]
-            })
-          }
-        );
+    if (quoteRes.success && quoteRes.data) {
+      const q = quoteRes.data;
+      const price = typeof q.price === 'number' ? q.price : 0;
+      const change = typeof q.change === 'number' ? q.change : 0;
+      const changePercent = typeof q.changePercent === 'number' ? q.changePercent : 0;
+      const volume = typeof q.volume === 'number' ? q.volume : 0;
 
-        if (priceResponse.ok && profileResponse.ok) {
-          const priceData = await priceResponse.json();
-          const profileData = await profileResponse.json();
+      const fundamentals: any = fundamentalsRes.success ? fundamentalsRes.data : null;
 
-          if (priceData.data && priceData.data.length >= 1) {
-            const current = priceData.data[priceData.data.length - 1];
-            const previous = priceData.data.length > 1 ? priceData.data[priceData.data.length - 2] : current;
-            
-            const price = current.price || 0;
-            const prevPrice = previous.price || price;
-            const change = price - prevPrice;
-            const changePercent = prevPrice > 0 ? (change / prevPrice) * 100 : 0;
+      const data = {
+        symbol,
+        price,
+        change,
+        changePercent,
+        volume,
+        marketCap:
+          typeof fundamentals?.marketCap === 'number' && fundamentals.marketCap > 0
+            ? fundamentals.marketCap
+            : 'N/A',
+        pe:
+          typeof fundamentals?.pe === 'number' && fundamentals.pe > 0 ? fundamentals.pe : 'N/A',
+        high52Week: price ? price * 1.2 : 0,
+        low52Week: price ? price * 0.8 : 0,
+      };
 
-            const profile = profileData.data?.[0] || {};
-
-            const data = {
-              symbol,
-              price,
-              change,
-              changePercent,
-              volume: current.volume || 0,
-              marketCap: profile.marketCap || 'N/A',
-              pe: profile.peRatio || 'N/A',
-              high52Week: current.high52Week || price * 1.2,
-              low52Week: current.low52Week || price * 0.8,
-            };
-
-            cache.set(cacheKey, { data, timestamp: Date.now() });
-            return data;
-          }
-        }
-      } catch (factsetError) {
-        console.warn('FactSet API error, falling back to mock data:', factsetError);
-      }
+      cache.set(cacheKey, { data, timestamp: Date.now() });
+      return data;
     }
 
     // Fallback to mock data
@@ -193,44 +140,30 @@ export async function fetchHistoricalData(symbol: string, days: number = 30) {
   }
 
   try {
-    // Try FactSet Time Series API
-    if (FACTSET_USERNAME !== 'YOUR_FACTSET_USERNAME' && FACTSET_API_KEY !== 'YOUR_FACTSET_API_KEY') {
-      try {
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days);
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
 
-        const response = await fetch(
-          `${FACTSET_API_BASE}/factset-prices/v1/prices`,
-          {
-            method: 'POST',
-            headers: getFactSetHeaders(),
-            body: JSON.stringify({
-              ids: [symbol],
-              startDate: startDate.toISOString().split('T')[0],
-              endDate: endDate.toISOString().split('T')[0],
-              frequency: 'D',
-              calendar: 'FIVEDAY'
-            })
-          }
-        );
+    const response = await api.getHistoricalData(symbol, {
+      from: startDate.toISOString(),
+      to: endDate.toISOString(),
+      interval: '1d',
+    });
 
-        if (response.ok) {
-          const result = await response.json();
-          if (result.data && result.data.length > 0) {
-            const data = result.data.map((item: any, index: number) => ({
-              date: item.date,
-              value: item.price || 0,
-              change: index > 0 ? (item.price || 0) - (result.data[index - 1].price || 0) : 0,
-            }));
-            
-            cache.set(cacheKey, { data, timestamp: Date.now() });
-            return data;
-          }
-        }
-      } catch (error) {
-        console.error(`FactSet API error for historical data:`, error);
-      }
+    const candles = response.success ? response.data?.data : undefined;
+    if (Array.isArray(candles) && candles.length > 0) {
+      const mapped: PerformanceData[] = candles.map((c: any, index: number) => {
+        const value = typeof c?.close === 'number' ? c.close : 0;
+        const prev = index > 0 && typeof candles[index - 1]?.close === 'number' ? candles[index - 1].close : value;
+        return {
+          date: c?.date || new Date().toISOString().split('T')[0],
+          value,
+          change: value - prev,
+        };
+      });
+
+      cache.set(cacheKey, { data: mapped, timestamp: Date.now() });
+      return mapped;
     }
 
     // Fallback: Generate mock historical data
@@ -264,47 +197,15 @@ export async function fetchNews(symbols: string[] = []) {
   }
 
   try {
-    // Try FactSet News API
-    if (FACTSET_USERNAME !== 'YOUR_FACTSET_USERNAME' && FACTSET_API_KEY !== 'YOUR_FACTSET_API_KEY') {
-      try {
-        const response = await fetch(
-          `${FACTSET_API_BASE}/news/v1/list-articles`,
-          {
-            method: 'POST',
-            headers: getFactSetHeaders(),
-            body: JSON.stringify({
-              symbols: symbols.length > 0 ? symbols : undefined,
-              startDate: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Last 24 hours
-              endDate: new Date().toISOString().split('T')[0],
-              limit: 20
-            })
-          }
-        );
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.data && result.data.length > 0) {
-            const newsItems = result.data.map((item: any) => ({
-              id: item.articleId || String(Math.random()),
-              title: item.headline || 'No title',
-              source: item.source || 'FactSet',
-              url: item.url || '#',
-              publishedAt: item.publishedDate || new Date().toISOString(),
-              sentiment: item.sentiment?.label?.toLowerCase() || 'neutral',
-              symbols: item.symbols || [],
-            }));
-
-            cache.set(cacheKey, { data: newsItems, timestamp: Date.now() });
-            return newsItems;
-          }
-        }
-      } catch (factsetError) {
-        console.warn('FactSet News API error, falling back to mock data:', factsetError);
-      }
+    const response = await api.getMarketNews(symbols, 20);
+    const backendNews = response.success ? response.data?.news : undefined;
+    if (Array.isArray(backendNews)) {
+      cache.set(cacheKey, { data: backendNews, timestamp: Date.now() });
+      return backendNews;
     }
 
     // Fallback to mock news data
-    const newsItems = [
+    const mockNewsItems: NewsItem[] = [
       {
         id: '1',
         title: 'Tech Stocks Rally on Strong Earnings Reports',
@@ -345,11 +246,10 @@ export async function fetchNews(symbols: string[] = []) {
 
     // Filter by symbols if provided
     const filteredNews = symbols.length > 0
-      ? newsItems.filter(item => 
-          item.symbols.length === 0 || 
-          item.symbols.some(s => symbols.includes(s))
+      ? mockNewsItems.filter((item) =>
+          item.symbols.length === 0 || item.symbols.some((s) => symbols.includes(s))
         )
-      : newsItems;
+      : mockNewsItems;
 
     cache.set(cacheKey, { data: filteredNews, timestamp: Date.now() });
     return filteredNews;

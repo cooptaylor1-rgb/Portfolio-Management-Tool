@@ -9,6 +9,7 @@ import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import { AppShell } from '../layouts';
 import { LoadingOverlay } from '../components/ui';
+import { AuthGate } from './AuthGate';
 
 // Lazy load pages for code splitting
 const DashboardPage = lazy(() => import('../pages/DashboardPage'));
@@ -44,7 +45,11 @@ function PageWrapper() {
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <AppShell />,
+    element: (
+      <AuthGate>
+        <AppShell />
+      </AuthGate>
+    ),
     children: [
       {
         element: <PageWrapper />,

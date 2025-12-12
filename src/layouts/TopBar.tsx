@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useShell } from './AppShell';
+import { useAuth } from '../contexts/AuthContext';
 
 interface TopBarProps {
   onToggleSidebar: () => void;
@@ -35,11 +36,20 @@ interface TopBarProps {
 export function TopBar({ onToggleSidebar, sidebarCollapsed }: TopBarProps) {
   const location = useLocation();
   const { dateRange, setDateRange } = useShell();
+  const { user, logout } = useAuth();
   const [showSearch, setShowSearch] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      setShowUserMenu(false);
+    }
+  };
 
   // Generate breadcrumbs from path
   const breadcrumbs = generateBreadcrumbs(location.pathname);
@@ -207,15 +217,19 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed }: TopBarProps) {
           {showUserMenu && (
             <div className="topbar__dropdown-menu topbar__user-menu">
               <div className="topbar__user-info">
-                <div className="topbar__user-name">Demo User</div>
-                <div className="topbar__user-email">demo@example.com</div>
+                <div className="topbar__user-name">{user?.name || 'User'}</div>
+                <div className="topbar__user-email">{user?.email || ''}</div>
               </div>
               <div className="topbar__menu-divider" />
               <Link to="/settings" className="topbar__menu-item">
                 <Settings size={16} />
                 Settings
               </Link>
-              <button className="topbar__menu-item topbar__menu-item--danger">
+              <button
+                className="topbar__menu-item topbar__menu-item--danger"
+                onClick={handleLogout}
+                type="button"
+              >
                 <LogOut size={16} />
                 Log Out
               </button>

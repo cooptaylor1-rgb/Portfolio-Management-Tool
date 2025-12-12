@@ -5,6 +5,8 @@
  * and provides real-time quote streaming.
  */
 
+import { WS_URL } from './runtimeConfig';
+
 type QuoteHandler = (quote: Quote) => void;
 type ConnectionHandler = (status: 'connected' | 'disconnected' | 'error') => void;
 
@@ -29,15 +31,7 @@ class RealTimeMarketService {
   private isConnecting = false;
   private latestQuotes = new Map<string, Quote>();
 
-  private wsUrl = (() => {
-    const explicit = import.meta.env.VITE_WS_URL as string | undefined;
-    if (explicit) return explicit;
-
-    const apiOrigin = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
-    const wsScheme = apiOrigin.startsWith('https://') ? 'wss://' : 'ws://';
-    const host = apiOrigin.replace(/^https?:\/\//, '');
-    return `${wsScheme}${host}/api/v2/market/stream`;
-  })();
+  private wsUrl = WS_URL;
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {

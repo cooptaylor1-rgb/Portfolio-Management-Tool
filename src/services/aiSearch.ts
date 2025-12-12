@@ -1,8 +1,9 @@
 // AI-powered search service using OpenAI API
 import { Investment, PortfolioStats } from '../types';
 
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
-const OPENAI_API_BASE = 'https://api.openai.com/v1';
+// NOTE: Do not call OpenAI directly from the browser (secrets would be exposed).
+// We proxy AI requests through the backend under /api/v2/ai.
+import { API_BASE } from './runtimeConfig';
 
 interface SearchContext {
   investments: Investment[];
@@ -21,38 +22,17 @@ interface AISearchResult {
  * Performs AI-powered search across the portfolio using OpenAI
  */
 export async function searchWithAI(context: SearchContext): Promise<AISearchResult> {
-  if (!OPENAI_API_KEY) {
-    return getFallbackSearch(context);
-  }
-
   try {
     // Prepare context for AI
     const portfolioContext = preparePortfolioContext(context);
-    
-    const response = await fetch(`${OPENAI_API_BASE}/chat/completions`, {
+
+    const response = await fetch(`${API_BASE}/ai/search`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a helpful financial assistant analyzing a user's investment portfolio. 
-            Provide clear, concise answers about their investments, performance, and recommendations.
-            Always cite specific investments by name when relevant.
-            Keep responses under 150 words and actionable.`
-          },
-          {
-            role: 'user',
-            content: `Portfolio Context:\n${portfolioContext}\n\nUser Question: ${context.query}`
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 300
-      })
+        query: context.query,
+        portfolioContext,
+      }),
     });
 
     if (!response.ok) {
@@ -60,7 +40,7 @@ export async function searchWithAI(context: SearchContext): Promise<AISearchResu
     }
 
     const data = await response.json();
-    const answer = data.choices[0]?.message?.content || 'No answer generated';
+    const answer = data?.data?.answer || 'No answer generated';
 
     // Extract relevant investments mentioned in the answer
     const relevantInvestments = findRelevantInvestments(answer, context.investments);
@@ -228,5 +208,7 @@ function getFallbackSearch(context: SearchContext): AISearchResult {
  * Checks if OpenAI API is configured
  */
 export function isAISearchAvailable(): boolean {
-  return !!OPENAI_API_KEY && OPENAI_API_KEY !== '';
+  // Availability is determined server-side (OPENAI_API_KEY is not exposed to the browser).
+  // The UI can still open AI search; if the backend isn't configured, we fall back to keyword search.
+  return true;
 }

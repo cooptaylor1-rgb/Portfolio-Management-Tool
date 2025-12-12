@@ -1,7 +1,6 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_ALPHA_VANTAGE_KEY?: string
   readonly VITE_FMP_API_KEY?: string
   readonly VITE_IEX_API_KEY?: string
 }

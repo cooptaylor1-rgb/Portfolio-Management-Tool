@@ -3,6 +3,7 @@ import { Investment, PortfolioStats } from './types'
 import { useAuth } from './contexts/AuthContext'
 import { useToast } from './hooks/useToast'
 import { ToastContainer } from './components/ui/Toast'
+import Login from './components/Login'
 import Dashboard from './components/Dashboard'
 import AddInvestment from './components/AddInvestment'
 import InvestmentList from './components/InvestmentList'
@@ -25,42 +26,37 @@ type TabView = 'portfolio' | 'macro' | 'research' | 'journal' | 'sizing' | 'corr
 type ResearchSubTab = 'equity' | 'themes'
 
 function App() {
-  const authContext = useAuth();
-  const { user, logout } = authContext || {};
+  const { user, logout, login, register, isAuthenticated, loading } = useAuth();
   const { toasts, success } = useToast();
   const [showUserMenu, setShowUserMenu] = useState(false);
   
-  // TEMPORARY: Skip login for debugging
-  const skipLogin = true; // Force skip for now
-  
-  // Create mock user for skip auth mode
-  const activeUser = skipLogin ? { id: 'demo', name: 'Demo User', email: 'demo@example.com', createdAt: new Date().toISOString() } : user;
+  const activeUser = user;
 
-  // Skip loading and auth checks
-  // if (loading && !skipLogin) {
-  //   return (
-  //     <div className="flex items-center justify-center min-h-screen bg-gray-900">
-  //       <div className="text-center">
-  //         <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-  //         <p className="text-gray-400">Loading...</p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
+  // This legacy App shell is not the primary router-based UI, but keep it safe:
+  // enforce authentication instead of bypassing it.
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-900">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
-  // Show login page if not authenticated (unless skipauth is in URL)
-  // if (!isAuthenticated && !skipLogin) {
-  //   return (
-  //     <Login
-  //       onLogin={async (email, password) => {
-  //         await login({ email, password });
-  //       }}
-  //       onRegister={async (name, email, password, confirmPassword) => {
-  //         await register({ name, email, password, confirmPassword });
-  //       }}
-  //     />
-  //   );
-  // }
+  if (!isAuthenticated) {
+    return (
+      <Login
+        onLogin={async (email, password) => {
+          await login({ email, password });
+        }}
+        onRegister={async (name, email, password, confirmPassword) => {
+          await register({ name, email, password, confirmPassword });
+        }}
+      />
+    );
+  }
 
   const handleLogout = async () => {
     if (logout && window.confirm('Are you sure you want to log out?')) {
@@ -275,35 +271,33 @@ function App() {
             <HelpCircle size={20} aria-hidden="true" />
             <span className="sr-only">Keyboard shortcut: Ctrl+K</span>
           </button>
-          {!skipLogin && (
-            <div className="dropdown">
-              <button 
-                className="btn-ghost"
-                onClick={() => setShowUserMenu(!showUserMenu)}
-                title="User menu"
-                aria-label="User menu"
-                aria-expanded={showUserMenu}
-              >
-                <User size={20} />
-                <span className="text-sm">{activeUser?.name}</span>
-              </button>
-              {showUserMenu && (
-                <div className="dropdown-menu">
-                  <div style={{ padding: 'var(--spacing-md)', borderBottom: '1px solid var(--border-primary)' }}>
-                    <div className="font-semibold text-primary">{activeUser?.name}</div>
-                    <div className="text-sm text-secondary">{activeUser?.email}</div>
-                  </div>
-                  <button
-                    className="dropdown-item text-danger"
-                    onClick={handleLogout}
-                  >
-                    <LogOut size={16} />
-                    Log Out
-                  </button>
+          <div className="dropdown">
+            <button 
+              className="btn-ghost"
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              title="User menu"
+              aria-label="User menu"
+              aria-expanded={showUserMenu}
+            >
+              <User size={20} />
+              <span className="text-sm">{activeUser?.name}</span>
+            </button>
+            {showUserMenu && (
+              <div className="dropdown-menu">
+                <div style={{ padding: 'var(--spacing-md)', borderBottom: '1px solid var(--border-primary)' }}>
+                  <div className="font-semibold text-primary">{activeUser?.name}</div>
+                  <div className="text-sm text-secondary">{activeUser?.email}</div>
                 </div>
-              )}
-            </div>
-          )}
+                <button
+                  className="dropdown-item text-danger"
+                  onClick={handleLogout}
+                >
+                  <LogOut size={16} />
+                  Log Out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

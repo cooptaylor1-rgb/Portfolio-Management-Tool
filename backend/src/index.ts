@@ -9,6 +9,7 @@ import { authRoutes } from './routes/auth.js';
 import { portfolioRoutes } from './routes/portfolios.js';
 import { marketRoutes } from './routes/market.js';
 import { analyticsRoutes } from './routes/analytics.js';
+import { aiRoutes } from './routes/ai.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { metricsMiddleware, registerMetricsRoutes } from './services/metrics.js';
@@ -94,18 +95,21 @@ app.register(authRoutes, { prefix: '/api/v2/auth' });
 app.register(portfolioRoutes, { prefix: '/api/v2/portfolios' });
 app.register(marketRoutes, { prefix: '/api/v2/market' });
 app.register(analyticsRoutes, { prefix: '/api/v2/analytics' });
+app.register(aiRoutes, { prefix: '/api/v2/ai' });
 
 // Legacy v1 routes (deprecated, maps to v2)
 app.register(authRoutes, { prefix: '/api/v1/auth' });
 app.register(portfolioRoutes, { prefix: '/api/v1/portfolios' });
 app.register(marketRoutes, { prefix: '/api/v1/market' });
 app.register(analyticsRoutes, { prefix: '/api/v1/analytics' });
+app.register(aiRoutes, { prefix: '/api/v1/ai' });
 
 // Unversioned routes (uses default version from config)
 app.register(authRoutes, { prefix: '/api/auth' });
 app.register(portfolioRoutes, { prefix: '/api/portfolios' });
 app.register(marketRoutes, { prefix: '/api/market' });
 app.register(analyticsRoutes, { prefix: '/api/analytics' });
+app.register(aiRoutes, { prefix: '/api/ai' });
 
 // 404 handler
 app.setNotFoundHandler((request, reply) => {
