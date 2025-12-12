@@ -27,6 +27,7 @@ import {
 import { format } from 'date-fns';
 import { useShell } from './AppShell';
 import { useAuth } from '../contexts/AuthContext';
+import { usePortfolio } from '../contexts/PortfolioContext';
 
 interface TopBarProps {
   onToggleSidebar: () => void;
@@ -37,8 +38,10 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed }: TopBarProps) {
   const location = useLocation();
   const { dateRange, setDateRange } = useShell();
   const { user, logout } = useAuth();
+  const { portfolios, activePortfolio, selectPortfolio, isLoading: isPortfolioLoading } = usePortfolio();
   const [showSearch, setShowSearch] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showPortfolioMenu, setShowPortfolioMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -65,6 +68,7 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed }: TopBarProps) {
       if (e.key === 'Escape') {
         setShowSearch(false);
         setShowDatePicker(false);
+        setShowPortfolioMenu(false);
         setShowUserMenu(false);
       }
     };
@@ -99,6 +103,14 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed }: TopBarProps) {
     setShowDatePicker(false);
   };
 
+  const handlePortfolioSelect = async (portfolioId: string) => {
+    try {
+      await selectPortfolio(portfolioId);
+    } finally {
+      setShowPortfolioMenu(false);
+    }
+  };
+
   return (
     <header className="topbar">
       <div className="topbar__left">
@@ -129,6 +141,43 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed }: TopBarProps) {
       </div>
 
       <div className="topbar__right">
+        {/* Portfolio Selector */}
+        {portfolios.length > 0 && (
+          <div className="topbar__dropdown">
+            <button
+              className="topbar__action"
+              onClick={() => {
+                setShowPortfolioMenu(!showPortfolioMenu);
+                setShowDatePicker(false);
+                setShowUserMenu(false);
+              }}
+              aria-expanded={showPortfolioMenu}
+              aria-label="Select portfolio"
+              type="button"
+              disabled={isPortfolioLoading}
+            >
+              <span className="topbar__action-label">{activePortfolio?.name || 'Select portfolio'}</span>
+              <ChevronDown size={14} />
+            </button>
+
+            {showPortfolioMenu && (
+              <div className="topbar__dropdown-menu topbar__user-menu">
+                {portfolios.map((p) => (
+                  <button
+                    key={p.id}
+                    className="topbar__menu-item"
+                    onClick={() => handlePortfolioSelect(p.id)}
+                    type="button"
+                    disabled={isPortfolioLoading}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Global Search */}
         <button 
           className="topbar__action topbar__search-trigger"
@@ -144,7 +193,11 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed }: TopBarProps) {
         <div className="topbar__dropdown">
           <button 
             className="topbar__action"
-            onClick={() => setShowDatePicker(!showDatePicker)}
+            onClick={() => {
+              setShowDatePicker(!showDatePicker);
+              setShowPortfolioMenu(false);
+              setShowUserMenu(false);
+            }}
             aria-expanded={showDatePicker}
           >
             <Calendar size={18} />
@@ -205,7 +258,11 @@ export function TopBar({ onToggleSidebar, sidebarCollapsed }: TopBarProps) {
         <div className="topbar__dropdown">
           <button 
             className="topbar__user"
-            onClick={() => setShowUserMenu(!showUserMenu)}
+            onClick={() => {
+              setShowUserMenu(!showUserMenu);
+              setShowDatePicker(false);
+              setShowPortfolioMenu(false);
+            }}
             aria-expanded={showUserMenu}
           >
             <div className="topbar__avatar">
