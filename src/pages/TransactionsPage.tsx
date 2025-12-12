@@ -8,7 +8,6 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Plus,
   Download,
-  Filter,
   ArrowUpRight,
   ArrowDownRight,
   Coins,
@@ -19,6 +18,7 @@ import {
   ArrowDown,
   ArrowUpDown,
   X,
+  ChevronDown,
 } from 'lucide-react';
 import { usePortfolio, type Transaction as PortfolioTransaction } from '../contexts/PortfolioContext';
 import {
@@ -41,7 +41,6 @@ import {
   computeTransactionSummary,
   getTransactionTypeLabel,
 } from '../features/transactions';
-import { KPICard, KPIGrid } from '../components/ui/KPICard';
 import './pages.css';
 
 const TYPE_CONFIG: Record<TransactionType, { icon: typeof ArrowUpRight; color: string; label: string }> = {
@@ -59,6 +58,7 @@ export default function TransactionsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showColumnDialog, setShowColumnDialog] = useState(false);
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const [filters, setFilters] = useState<TransactionFilters>({
     text: '',
@@ -312,7 +312,7 @@ export default function TransactionsPage() {
   };
 
   return (
-    <div className="page">
+    <div className="page page--transactions">
       <div className="page__header">
         <div className="page__title-group">
           <h1 className="page__title">Transactions</h1>
@@ -336,172 +336,24 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      <div className="page__section">
-        <KPIGrid columns={5}>
-          <KPICard label="In View" value={summary.count} format="number" />
-          <KPICard label="Bought" value={summary.totalBought} format="currency" variant="danger" />
-          <KPICard label="Sold" value={summary.totalSold} format="currency" variant="highlight" />
-          <KPICard label="Net Invested" value={summary.netInvested} format="currency" />
-          <KPICard label="Div/Int" value={summary.dividendsReceived} format="currency" variant="highlight" />
-        </KPIGrid>
+      <div className="transactions-kpis" aria-label="Transaction KPI tiles">
+        <KpiTile label="In View" value={summary.count.toLocaleString()} caption="In current filters" />
+        <KpiTile label="Bought" value={formatMoney(summary.totalBought)} caption="Gross outflow" />
+        <KpiTile label="Sold" value={formatMoney(summary.totalSold)} caption="Gross inflow" />
+        <KpiTile label="Net Invested" value={formatMoney(summary.netInvested)} caption="Bought − sold" />
+        <KpiTile label="Div/Int" value={formatMoney(summary.dividendsReceived)} caption="Income" />
       </div>
 
-      {/* Filters */}
-      <div className="page__filters transactions-filters">
-        <div className="search-input">
-          <Search size={16} />
-          <input
-            type="text"
-            placeholder="Search transactions..."
-            value={filters.text}
-            onChange={e => setFilters(prev => ({ ...prev, text: e.target.value }))}
-          />
-        </div>
-        <div className="filter-group">
-          <Filter size={16} />
-          <div className="transactions-filters__types" aria-label="Transaction type filters">
-            {(['buy', 'sell', 'dividend', 'split'] as TransactionType[]).map(type => {
-              const active = filters.types.includes(type);
-              return (
-                <button
-                  key={type}
-                  type="button"
-                  className={`thesis-option ${active ? 'thesis-option--active' : ''}`}
-                  onClick={() =>
-                    setFilters(prev => ({
-                      ...prev,
-                      types: active ? prev.types.filter(t => t !== type) : [...prev.types, type],
-                    }))
-                  }
-                >
-                  {getTransactionTypeLabel(type)}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div className="filter-group">
-          <span className="form-label" style={{ margin: 0 }}>From</span>
-          <input
-            type="date"
-            className="form-input"
-            value={filters.dateFrom ?? ''}
-            onChange={e => setFilters(prev => ({ ...prev, dateFrom: e.target.value || undefined }))}
-          />
-        </div>
-        <div className="filter-group">
-          <span className="form-label" style={{ margin: 0 }}>To</span>
-          <input
-            type="date"
-            className="form-input"
-            value={filters.dateTo ?? ''}
-            onChange={e => setFilters(prev => ({ ...prev, dateTo: e.target.value || undefined }))}
-          />
-        </div>
-        <div className="filter-group">
-          <span className="form-label" style={{ margin: 0 }}>Min</span>
-          <input
-            type="number"
-            className="form-input"
-            placeholder="0"
-            value={filters.minAbsNotional ?? ''}
-            onChange={e =>
-              setFilters(prev => ({
-                ...prev,
-                minAbsNotional: e.target.value === '' ? undefined : Number(e.target.value),
-              }))
-            }
-          />
-        </div>
-        <div className="filter-group">
-          <span className="form-label" style={{ margin: 0 }}>Max</span>
-          <input
-            type="number"
-            className="form-input"
-            placeholder=""
-            value={filters.maxAbsNotional ?? ''}
-            onChange={e =>
-              setFilters(prev => ({
-                ...prev,
-                maxAbsNotional: e.target.value === '' ? undefined : Number(e.target.value),
-              }))
-            }
-          />
-        </div>
-      </div>
-
-      {(filters.text ||
-        filters.types.length > 0 ||
-        filters.dateFrom ||
-        filters.dateTo ||
-        filters.minAbsNotional != null ||
-        filters.maxAbsNotional != null) && (
-        <div className="active-filters" style={{ marginBottom: 12 }}>
-          {filters.text && (
-            <span className="filter-chip">
-              Search: {filters.text}
-              <button onClick={() => setFilters(prev => ({ ...prev, text: '' }))} aria-label="Clear search">
-                <X size={12} />
-              </button>
-            </span>
-          )}
-          {filters.types.length > 0 && (
-            <span className="filter-chip">
-              Types: {filters.types.map(getTransactionTypeLabel).join(', ')}
-              <button onClick={() => setFilters(prev => ({ ...prev, types: [] }))} aria-label="Clear types">
-                <X size={12} />
-              </button>
-            </span>
-          )}
-          {(filters.dateFrom || filters.dateTo) && (
-            <span className="filter-chip">
-              Date: {filters.dateFrom ?? '…'} → {filters.dateTo ?? '…'}
-              <button
-                onClick={() => setFilters(prev => ({ ...prev, dateFrom: undefined, dateTo: undefined }))}
-                aria-label="Clear date range"
-              >
-                <X size={12} />
-              </button>
-            </span>
-          )}
-          {(filters.minAbsNotional != null || filters.maxAbsNotional != null) && (
-            <span className="filter-chip">
-              Notional: {filters.minAbsNotional != null ? `≥ ${filters.minAbsNotional}` : '…'} / {filters.maxAbsNotional != null ? `≤ ${filters.maxAbsNotional}` : '…'}
-              <button
-                onClick={() =>
-                  setFilters(prev => ({
-                    ...prev,
-                    minAbsNotional: undefined,
-                    maxAbsNotional: undefined,
-                  }))
-                }
-                aria-label="Clear notional range"
-              >
-                <X size={12} />
-              </button>
-            </span>
-          )}
-          <button
-            className="filter-clear"
-            onClick={() =>
-              setFilters({
-                text: '',
-                types: [],
-                dateFrom: undefined,
-                dateTo: undefined,
-                minAbsNotional: undefined,
-                maxAbsNotional: undefined,
-              })
-            }
-          >
-            Clear all
-          </button>
-        </div>
-      )}
+      <TransactionsFilterBar
+        filters={filters}
+        onChange={setFilters}
+        showAdvanced={showAdvancedFilters}
+        onToggleAdvanced={() => setShowAdvancedFilters(v => !v)}
+      />
 
       {/* Transactions Table */}
       <div className={`transactions-workspace ${selectedTransactionId ? 'transactions-workspace--with-detail' : ''}`}>
-        <section className="card">
+        <section className="card transactions-table-card">
           <div className="card__body card__body--flush">
             <div className="table-container">
               <table className="transactions-table">
@@ -620,6 +472,214 @@ export default function TransactionsPage() {
       )}
     </div>
   );
+}
+
+function KpiTile({ label, value, caption }: { label: string; value: string; caption: string }) {
+  return (
+    <div className="kpi-tile">
+      <div className="kpi-tile__label">{label}</div>
+      <div className="kpi-tile__value">{value}</div>
+      <div className="kpi-tile__caption">{caption}</div>
+    </div>
+  );
+}
+
+function TransactionsFilterBar({
+  filters,
+  onChange,
+  showAdvanced,
+  onToggleAdvanced,
+}: {
+  filters: TransactionFilters;
+  onChange: (updater: (prev: TransactionFilters) => TransactionFilters) => void;
+  showAdvanced: boolean;
+  onToggleAdvanced: () => void;
+}) {
+  const hasAnyFilters =
+    Boolean(filters.text) ||
+    filters.types.length > 0 ||
+    Boolean(filters.dateFrom) ||
+    Boolean(filters.dateTo) ||
+    filters.minAbsNotional != null ||
+    filters.maxAbsNotional != null;
+
+  return (
+    <div className="transactions-filterbar" aria-label="Transaction filters">
+      <div className="transactions-filterbar__row">
+        <div className="transactions-search" role="search">
+          <Search size={14} className="transactions-search__icon" />
+          <input
+            type="text"
+            className="form-input transactions-search__input"
+            placeholder="Search symbol, name, notes…"
+            value={filters.text}
+            onChange={e => onChange(prev => ({ ...prev, text: e.target.value }))}
+          />
+          {filters.text && (
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm transactions-search__clear"
+              onClick={() => onChange(prev => ({ ...prev, text: '' }))}
+              aria-label="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        <div className="transactions-typepills" aria-label="Transaction type filters">
+          {(['buy', 'sell', 'dividend', 'split'] as TransactionType[]).map(type => {
+            const active = filters.types.includes(type);
+            return (
+              <button
+                key={type}
+                type="button"
+                className={`transactions-pill ${active ? 'transactions-pill--active' : ''}`}
+                onClick={() =>
+                  onChange(prev => ({
+                    ...prev,
+                    types: active ? prev.types.filter(t => t !== type) : [...prev.types, type],
+                  }))
+                }
+              >
+                {getTransactionTypeLabel(type)}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="transactions-daterange" aria-label="Date range">
+          <span className="transactions-daterange__label">Date</span>
+          <input
+            type="date"
+            className="form-input transactions-input--sm"
+            value={filters.dateFrom ?? ''}
+            onChange={e => onChange(prev => ({ ...prev, dateFrom: e.target.value || undefined }))}
+            aria-label="From date"
+          />
+          <span className="transactions-daterange__sep">–</span>
+          <input
+            type="date"
+            className="form-input transactions-input--sm"
+            value={filters.dateTo ?? ''}
+            onChange={e => onChange(prev => ({ ...prev, dateTo: e.target.value || undefined }))}
+            aria-label="To date"
+          />
+        </div>
+
+        <button type="button" className="btn btn--ghost btn--sm" onClick={onToggleAdvanced}>
+          Advanced
+          <ChevronDown size={14} className={showAdvanced ? 'rotate-180' : ''} />
+        </button>
+      </div>
+
+      {showAdvanced && (
+        <div className="transactions-filterbar__row transactions-filterbar__row--advanced" aria-label="Advanced filters">
+          <div className="transactions-advanced">
+            <div className="transactions-advanced__group">
+              <span className="transactions-advanced__label">Notional</span>
+              <input
+                type="number"
+                className="form-input transactions-input--sm transactions-input--w"
+                placeholder="Min"
+                value={filters.minAbsNotional ?? ''}
+                onChange={e =>
+                  onChange(prev => ({
+                    ...prev,
+                    minAbsNotional: e.target.value === '' ? undefined : Number(e.target.value),
+                  }))
+                }
+              />
+              <input
+                type="number"
+                className="form-input transactions-input--sm transactions-input--w"
+                placeholder="Max"
+                value={filters.maxAbsNotional ?? ''}
+                onChange={e =>
+                  onChange(prev => ({
+                    ...prev,
+                    maxAbsNotional: e.target.value === '' ? undefined : Number(e.target.value),
+                  }))
+                }
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hasAnyFilters && (
+        <div className="transactions-chips" aria-label="Active filters">
+          {filters.text && (
+            <span className="transactions-chip">
+              Search: {filters.text}
+              <button onClick={() => onChange(prev => ({ ...prev, text: '' }))} aria-label="Clear search">
+                <X size={12} />
+              </button>
+            </span>
+          )}
+          {filters.types.length > 0 && (
+            <span className="transactions-chip">
+              Type: {filters.types.map(getTransactionTypeLabel).join(', ')}
+              <button onClick={() => onChange(prev => ({ ...prev, types: [] }))} aria-label="Clear types">
+                <X size={12} />
+              </button>
+            </span>
+          )}
+          {(filters.dateFrom || filters.dateTo) && (
+            <span className="transactions-chip">
+              Date: {filters.dateFrom ?? '…'} – {filters.dateTo ?? '…'}
+              <button
+                onClick={() => onChange(prev => ({ ...prev, dateFrom: undefined, dateTo: undefined }))}
+                aria-label="Clear date range"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+          {(filters.minAbsNotional != null || filters.maxAbsNotional != null) && (
+            <span className="transactions-chip">
+              Notional: {filters.minAbsNotional != null ? `≥ ${filters.minAbsNotional}` : '…'} / {filters.maxAbsNotional != null ? `≤ ${filters.maxAbsNotional}` : '…'}
+              <button
+                onClick={() =>
+                  onChange(prev => ({
+                    ...prev,
+                    minAbsNotional: undefined,
+                    maxAbsNotional: undefined,
+                  }))
+                }
+                aria-label="Clear notional range"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+          <button
+            className="filter-clear"
+            onClick={() =>
+              onChange(() => ({
+                text: '',
+                types: [],
+                dateFrom: undefined,
+                dateTo: undefined,
+                minAbsNotional: undefined,
+                maxAbsNotional: undefined,
+              }))
+            }
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatMoney(value: number): string {
+  return value.toLocaleString(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  });
 }
 
 function AddTransactionModal({
