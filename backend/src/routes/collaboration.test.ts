@@ -6,9 +6,15 @@ vi.mock('../lib/prisma.js', () => {
   const prisma = {
     portfolio: {
       findMany: vi.fn(),
+      findUnique: vi.fn(),
     },
     portfolioActivity: {
       findMany: vi.fn(),
+      create: vi.fn(),
+    },
+    portfolioShare: {
+      findUnique: vi.fn(),
+      delete: vi.fn(),
     },
     user: {
       findMany: vi.fn(),
@@ -144,5 +150,48 @@ describe('collaboration routes (mocked prisma)', () => {
     expect((prisma as any).user.findMany).toHaveBeenCalledTimes(1);
     const callArg = (prisma as any).user.findMany.mock.calls[0][0];
     expect(callArg.take).toBe(5);
+  });
+
+  it('DELETE /api/v2/portfolios/:id/share/:userId removes access', async () => {
+    const app = Fastify();
+
+    app.decorate('authenticate', async (request: any) => {
+      request.user = { id: 'owner_1' };
+    });
+
+    await app.register(portfolioRoutes, { prefix: '/api/v2/portfolios' });
+
+    (prisma as any).portfolio.findUnique.mockResolvedValue({
+      id: 'p1',
+      ownerId: 'owner_1',
+      shares: [],
+    });
+
+    (prisma as any).portfolioShare.findUnique.mockResolvedValue({
+      portfolioId: 'p1',
+      userId: 'user_2',
+      permission: 'VIEW',
+      user: { id: 'user_2', name: 'Bob', email: 'bob@example.com' },
+    });
+
+    (prisma as any).portfolioShare.delete.mockResolvedValue({
+      portfolioId: 'p1',
+      userId: 'user_2',
+    });
+
+    (prisma as any).portfolioActivity.create.mockResolvedValue({ id: 'act_1' });
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: '/api/v2/portfolios/p1/share/user_2',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as any;
+    expect(body.success).toBe(true);
+    expect(body.data.message).toBe('Access removed');
+
+    expect((prisma as any).portfolioShare.delete).toHaveBeenCalledTimes(1);
+    expect((prisma as any).portfolioActivity.create).toHaveBeenCalledTimes(1);
   });
 });
