@@ -4,8 +4,21 @@
  * Configure application preferences and account settings
  */
 
-import { useState, useEffect } from 'react';
-import { Save, Moon, Sun, Bell, Shield, Download, Trash2, RefreshCw, DollarSign, Palette, Globe } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import {
+  Save,
+  Moon,
+  Sun,
+  Bell,
+  Shield,
+  Download,
+  Upload,
+  Trash2,
+  RefreshCw,
+  DollarSign,
+  Palette,
+  Globe,
+} from 'lucide-react';
 import { api } from '../services/api';
 import './pages.css';
 
@@ -63,6 +76,7 @@ export default function SettingsPage() {
     return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
   });
   const [saved, setSaved] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const timeout = setTimeout(() => setSaved(false), 2000);
@@ -127,6 +141,98 @@ export default function SettingsPage() {
     a.download = `portfolio-backup-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleImportData = async (file: File) => {
+    const STORAGE_KEYS = {
+      investments: ['portfolioInvestments', 'portfolio_investments'],
+      transactions: ['portfolioTransactions', 'portfolio_transactions'],
+    } as const;
+
+    const raw = await file.text();
+    const parsed = JSON.parse(raw) as any;
+
+    const shouldProceed = confirm(
+      api.isAuthenticated()
+        ? 'Import backup into your account? This will create new portfolios in the backend.'
+        : 'Import backup locally? This will overwrite your local portfolio data.'
+    );
+    if (!shouldProceed) return;
+
+    // Restore non-portfolio settings/data when present
+    if (parsed && typeof parsed === 'object') {
+      if (parsed.settings && typeof parsed.settings === 'object') {
+        const merged = { ...DEFAULT_SETTINGS, ...parsed.settings } as AppSettings;
+        setSettings(merged);
+        localStorage.setItem('appSettings', JSON.stringify(merged));
+      }
+      if (Array.isArray(parsed.watchlist)) {
+        localStorage.setItem('watchlist', JSON.stringify(parsed.watchlist));
+      }
+      if (Array.isArray(parsed.journal)) {
+        localStorage.setItem('tradeJournal', JSON.stringify(parsed.journal));
+      }
+    }
+
+    // Backend import path (preferred when authenticated)
+    if (api.isAuthenticated()) {
+      const maybeExport = parsed?.portfolios;
+      const payload = (() => {
+        if (maybeExport && typeof maybeExport === 'object' && Array.isArray(maybeExport.portfolios)) return maybeExport;
+        if (parsed && typeof parsed === 'object' && Array.isArray(parsed.portfolios)) {
+          return {
+            version: parsed.version,
+            exportedAt: parsed.exportedAt,
+            portfolios: parsed.portfolios,
+          };
+        }
+        return null;
+      })();
+
+      if (payload) {
+        const imported = await api.importPortfolios(payload);
+        if (!imported.success) {
+          alert(imported.error?.message || 'Import failed');
+          return;
+        }
+        alert('Import complete');
+        window.location.reload();
+        return;
+      }
+    }
+
+    // Local restore path (fallback)
+    const normalizeInvestmentType = (t: unknown) => {
+      if (t === 'mutual_fund') return 'mutual-fund';
+      return t;
+    };
+
+    const investments = Array.isArray(parsed?.investments)
+      ? parsed.investments.map((inv: any) => ({ ...inv, type: normalizeInvestmentType(inv?.type) }))
+      : [];
+    const transactions = Array.isArray(parsed?.transactions) ? parsed.transactions : [];
+
+    for (const key of STORAGE_KEYS.investments) localStorage.setItem(key, JSON.stringify(investments));
+    for (const key of STORAGE_KEYS.transactions) localStorage.setItem(key, JSON.stringify(transactions));
+
+    alert('Import complete');
+    window.location.reload();
+  };
+
+  const handlePickImportFile = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      await handleImportData(file);
+    } catch (err) {
+      console.error('Import failed', err);
+      alert('Import failed: invalid file');
+    }
   };
 
   const handleClearData = () => {
@@ -465,9 +571,20 @@ export default function SettingsPage() {
             </div>
 
             <div className="data-actions">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json"
+                onChange={handleImportFileChange}
+                style={{ display: 'none' }}
+              />
               <button className="btn" onClick={handleExportData}>
                 <Download size={16} />
                 Export All Data
+              </button>
+              <button className="btn" onClick={handlePickImportFile}>
+                <Upload size={16} />
+                Import Backup
               </button>
               <button className="btn" onClick={handleReset}>
                 <RefreshCw size={16} />
