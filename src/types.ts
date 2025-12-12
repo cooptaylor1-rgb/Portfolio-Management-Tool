@@ -323,6 +323,11 @@ export interface Portfolio {
   isPublic: boolean;
   sharedWith: SharedUser[];
   tags?: string[];
+
+  // Optional backend-derived summary fields (used by collaboration UI)
+  investmentCount?: number;
+  permission?: 'OWNER' | 'VIEW' | 'EDIT' | 'ADMIN';
+  isOwner?: boolean;
 }
 
 export interface SharedUser {

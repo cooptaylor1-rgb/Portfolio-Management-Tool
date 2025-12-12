@@ -33,6 +33,40 @@ export async function portfolioRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
 
   /**
+   * GET /api/portfolios/activity
+   * List recent activity across all portfolios the user can access
+   */
+  app.get(
+    '/activity',
+    async (
+      request: FastifyRequest<{ Querystring: { limit?: string } }>,
+      reply: FastifyReply
+    ) => {
+      const userId = request.user.id;
+      const limit = Math.min(parseInt(request.query.limit || '50', 10), 100);
+
+      const activities = await prisma.portfolioActivity.findMany({
+        where: {
+          portfolio: {
+            OR: [{ ownerId: userId }, { shares: { some: { userId } } }],
+          },
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          portfolio: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      });
+
+      return reply.send({
+        success: true,
+        data: { activities },
+      });
+    }
+  );
+
+  /**
    * GET /api/portfolios
    * List user's portfolios (owned and shared)
    */
@@ -505,6 +539,71 @@ export async function portfolioRoutes(app: FastifyInstance) {
       return reply.send({
         success: true,
         data: { share },
+      });
+    }
+  );
+
+  /**
+   * DELETE /api/portfolios/:id/share/:userId
+   * Remove a user's access to a portfolio (owner/admin only)
+   */
+  app.delete(
+    '/:id/share/:userId',
+    async (
+      request: FastifyRequest<{ Params: { id: string; userId: string } }>,
+      reply: FastifyReply
+    ) => {
+      const actorId = request.user.id;
+      const portfolioId = request.params.id;
+      const targetUserId = request.params.userId;
+
+      const portfolio = await prisma.portfolio.findUnique({
+        where: { id: portfolioId },
+        include: { shares: { where: { userId: actorId } } },
+      });
+
+      if (!portfolio) {
+        throw new ApiError(404, 'PORTFOLIO_NOT_FOUND', 'Portfolio not found');
+      }
+
+      const canManageShares =
+        portfolio.ownerId === actorId || portfolio.shares.some((s) => s.permission === 'ADMIN');
+
+      if (!canManageShares) {
+        throw new ApiError(403, 'ACCESS_DENIED', 'You do not have permission to manage sharing');
+      }
+
+      if (targetUserId === portfolio.ownerId) {
+        throw new ApiError(400, 'INVALID_OPERATION', 'Cannot remove the owner');
+      }
+
+      const existing = await prisma.portfolioShare.findUnique({
+        where: { portfolioId_userId: { portfolioId, userId: targetUserId } },
+        include: { user: { select: { id: true, name: true, email: true } } },
+      });
+
+      if (!existing) {
+        throw new ApiError(404, 'SHARE_NOT_FOUND', 'Share not found');
+      }
+
+      await prisma.portfolioShare.delete({
+        where: { portfolioId_userId: { portfolioId, userId: targetUserId } },
+      });
+
+      await prisma.portfolioActivity.create({
+        data: {
+          portfolioId,
+          userId: actorId,
+          action: 'UNSHARED',
+          details: { removedUser: existing.user.email },
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        },
+      });
+
+      return reply.send({
+        success: true,
+        data: { message: 'Access removed' },
       });
     }
   );

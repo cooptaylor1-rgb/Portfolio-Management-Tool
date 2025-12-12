@@ -183,11 +183,11 @@ class ApiClient {
 
   // Portfolio endpoints
   async getPortfolios() {
-    return this.request<{ portfolios: Portfolio[] }>('/portfolios');
+    return this.request<{ portfolios: any[] }>('/portfolios');
   }
 
   async getPortfolio(id: string) {
-    return this.request<{ portfolio: Portfolio }>(`/portfolios/${id}`);
+    return this.request<{ portfolio: any }>(`/portfolios/${id}`);
   }
 
   async createPortfolio(data: { name: string; description?: string; isPublic?: boolean }) {
@@ -206,6 +206,32 @@ class ApiClient {
 
   async deletePortfolio(id: string) {
     return this.request<void>(`/portfolios/${id}`, { method: 'DELETE' });
+  }
+
+  async sharePortfolio(portfolioId: string, email: string, permission: 'VIEW' | 'EDIT' | 'ADMIN') {
+    return this.request<{ share: any }>(`/portfolios/${portfolioId}/share`, {
+      method: 'POST',
+      body: JSON.stringify({ email, permission }),
+    });
+  }
+
+  async unsharePortfolio(portfolioId: string, userId: string) {
+    return this.request<{ message: string }>(`/portfolios/${portfolioId}/share/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getPortfolioActivity(portfolioId: string, limit: number = 50) {
+    return this.request<{ activities: any[] }>(`/portfolios/${portfolioId}/activity?limit=${limit}`);
+  }
+
+  async getUserActivity(limit: number = 50) {
+    return this.request<{ activities: any[] }>(`/portfolios/activity?limit=${limit}`);
+  }
+
+  async searchUsers(query: string, limit: number = 10) {
+    const params = new URLSearchParams({ q: query, limit: String(limit) });
+    return this.request<{ users: any[] }>(`/users/search?${params.toString()}`);
   }
 
   // Investment endpoints
@@ -314,7 +340,7 @@ export interface Portfolio {
   description?: string;
   isPublic: boolean;
   ownerId: string;
-  investments: Investment[];
+  investments?: Investment[];
   createdAt: string;
   updatedAt: string;
 }

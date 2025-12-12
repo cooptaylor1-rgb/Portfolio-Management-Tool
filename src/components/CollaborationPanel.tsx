@@ -26,8 +26,8 @@ export function CollaborationPanel() {
     try {
       setLoading(true);
       const [userPortfolios, userActivities] = await Promise.all([
-        collaborationService.getUserPortfolios(user.id),
-        collaborationService.getUserActivities(user.id, 20)
+        collaborationService.getUserPortfolios(),
+        collaborationService.getUserActivities(20)
       ]);
       setPortfolios(userPortfolios);
       setActivities(userActivities);
@@ -42,7 +42,7 @@ export function CollaborationPanel() {
     if (!user) return;
 
     try {
-      await collaborationService.createPortfolio(name, description, user.id, user.name);
+      await collaborationService.createPortfolio(name, description, user.id);
       await loadData();
       setShowCreateModal(false);
     } catch (error: any) {
@@ -54,7 +54,7 @@ export function CollaborationPanel() {
     if (!user || !window.confirm('Are you sure you want to delete this portfolio?')) return;
 
     try {
-      await collaborationService.deletePortfolio(portfolioId, user.id);
+      await collaborationService.deletePortfolio(portfolioId);
       await loadData();
     } catch (error: any) {
       alert(error.message);
@@ -68,7 +68,6 @@ export function CollaborationPanel() {
       await collaborationService.updatePortfolio(
         portfolio.id,
         user.id,
-        user.name,
         { isPublic: !portfolio.isPublic }
       );
       await loadData();
@@ -149,7 +148,7 @@ export function CollaborationPanel() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Investments:</span>
                   <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
-                    {portfolio.investments.length}
+                    {portfolio.investmentCount ?? portfolio.investments.length}
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
@@ -272,7 +271,6 @@ export function CollaborationPanel() {
         <SharePortfolioModal
           portfolio={selectedPortfolio}
           currentUserId={user.id}
-          currentUserName={user.name}
           onClose={() => {
             setShowShareModal(false);
             setSelectedPortfolio(null);
@@ -380,10 +378,9 @@ function CreatePortfolioModal({ onClose, onCreate }: {
 }
 
 // Share Portfolio Modal Component
-function SharePortfolioModal({ portfolio, currentUserId, currentUserName, onClose, onUpdate }: {
+function SharePortfolioModal({ portfolio, currentUserId, onClose, onUpdate }: {
   portfolio: Portfolio;
   currentUserId: string;
-  currentUserName: string;
   onClose: () => void;
   onUpdate: () => void;
 }) {
@@ -415,7 +412,7 @@ function SharePortfolioModal({ portfolio, currentUserId, currentUserName, onClos
         permission: selectedPermission,
         addedAt: new Date().toISOString()
       };
-      await collaborationService.sharePortfolio(portfolio.id, currentUserId, currentUserName, sharedUser);
+      await collaborationService.sharePortfolio(portfolio.id, sharedUser);
       onUpdate();
       setSearchQuery('');
       setSearchResults([]);
@@ -428,7 +425,7 @@ function SharePortfolioModal({ portfolio, currentUserId, currentUserName, onClos
     if (!window.confirm('Remove this user\'s access?')) return;
 
     try {
-      await collaborationService.removeSharedUser(portfolio.id, currentUserId, currentUserName, userId);
+      await collaborationService.removeSharedUser(portfolio.id, userId);
       onUpdate();
     } catch (error: any) {
       alert(error.message);

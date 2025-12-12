@@ -249,18 +249,25 @@ class AuthService {
 
   // Search for users (for sharing portfolios)
   async searchUsers(query: string): Promise<User[]> {
-    await delay(300);
+    // Prefer backend user search. Fall back to demo DB only on network errors.
+    const backend = await api.searchUsers(query, 10);
+    if (backend.success && backend.data?.users) {
+      return backend.data.users as User[];
+    }
 
+    if (backend.error?.code !== 'NETWORK_ERROR') {
+      throw new Error(backend.error?.message || 'User search failed');
+    }
+
+    await delay(300);
     const users = this.getUsersDB();
     const lowerQuery = query.toLowerCase();
-
     return users
-      .filter(u => 
-        u.email.toLowerCase().includes(lowerQuery) || 
-        u.name.toLowerCase().includes(lowerQuery)
+      .filter(
+        (u) => u.email.toLowerCase().includes(lowerQuery) || u.name.toLowerCase().includes(lowerQuery)
       )
-      .map(u => this.sanitizeUser(u))
-      .slice(0, 10); // Limit to 10 results
+      .map((u) => this.sanitizeUser(u))
+      .slice(0, 10);
   }
 }
 
