@@ -222,6 +222,10 @@ describe('collaboration routes (mocked prisma)', () => {
         name: 'P1',
         description: null,
         isPublic: false,
+        ownerId: 'user_1',
+        owner: { id: 'user_1', name: 'Alice', email: 'alice@example.com' },
+        shares: [],
+        _count: { shares: 0 },
         investments: [
           {
             id: 'i1',
@@ -254,6 +258,10 @@ describe('collaboration routes (mocked prisma)', () => {
         name: 'Shared P2',
         description: 'Shared',
         isPublic: false,
+        ownerId: 'user_2',
+        owner: { id: 'user_2', name: 'Bob', email: 'bob@example.com' },
+        shares: [{ permission: 'VIEW' }],
+        _count: { shares: 1 },
         investments: [
           {
             id: 'i2',
@@ -285,8 +293,22 @@ describe('collaboration routes (mocked prisma)', () => {
     expect(names).toContain('Shared P2');
 
     const p1 = body.data.portfolios.find((p: any) => p.name === 'P1');
+    expect(p1.id).toBe('p1');
+    expect(p1.isOwner).toBe(true);
+    expect(p1.permission).toBe('OWNER');
+    expect(p1.owner.email).toBe('alice@example.com');
+    expect(p1.shareCount).toBe(0);
+    expect(p1.investmentCount).toBe(1);
     expect(p1.investments[0].symbol).toBe('AAPL');
     expect(p1.investments[0].transactions[0].type).toBe('BUY');
+
+    const p2 = body.data.portfolios.find((p: any) => p.name === 'Shared P2');
+    expect(p2.id).toBe('p2');
+    expect(p2.isOwner).toBe(false);
+    expect(p2.permission).toBe('VIEW');
+    expect(p2.owner.email).toBe('bob@example.com');
+    expect(p2.shareCount).toBe(1);
+    expect(p2.investmentCount).toBe(1);
 
     expect((prisma as any).portfolio.findMany).toHaveBeenCalledTimes(1);
     const callArg = (prisma as any).portfolio.findMany.mock.calls[0][0];

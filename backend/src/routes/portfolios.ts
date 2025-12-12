@@ -113,6 +113,20 @@ export async function portfolioRoutes(app: FastifyInstance) {
         OR: [{ ownerId: userId }, { shares: { some: { userId } } }],
       },
       include: {
+        _count: {
+          select: { shares: true },
+        },
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        shares: {
+          where: { userId },
+          select: { permission: true },
+        },
         investments: {
           orderBy: { createdAt: 'desc' },
           include: {
@@ -129,6 +143,12 @@ export async function portfolioRoutes(app: FastifyInstance) {
       version: '1',
       exportedAt: new Date().toISOString(),
       portfolios: portfolios.map((p) => ({
+        id: p.id,
+        owner: p.owner,
+        permission: p.ownerId === userId ? 'OWNER' : p.shares[0]?.permission ?? 'VIEW',
+        isOwner: p.ownerId === userId,
+        investmentCount: p.investments.length,
+        shareCount: p._count.shares,
         name: p.name,
         description: p.description,
         isPublic: p.isPublic,

@@ -464,6 +464,12 @@ export interface ApiPortfoliosImport {
 }
 
 export interface ApiPortfolioExport {
+  id?: string;
+  owner?: { id: string; name: string; email: string };
+  permission?: 'OWNER' | 'VIEW' | 'EDIT' | 'ADMIN';
+  isOwner?: boolean;
+  investmentCount?: number;
+  shareCount?: number;
   name: string;
   description?: string | null;
   isPublic?: boolean;
