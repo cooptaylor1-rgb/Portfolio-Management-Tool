@@ -48,7 +48,7 @@ const RISK_THRESHOLDS = {
 
 export default function PortfolioOverviewPage() {
   const navigate = useNavigate();
-  const { investments, transactions, stats, riskMetrics } = usePortfolio();
+  const { activePortfolio, investments, transactions, stats, riskMetrics } = usePortfolio();
   const { openDetailsPanel } = useShell();
   
   const [showAddModal, setShowAddModal] = useState(false);
@@ -155,6 +155,19 @@ export default function PortfolioOverviewPage() {
 
   const hasActiveFilters = allocationFilter || sectorFilter;
 
+  const importedFromMeta = useMemo(() => {
+    const importedFrom = activePortfolio?.importedFrom;
+    if (!importedFrom) return null;
+
+    const who = importedFrom.sourceOwnerName || importedFrom.sourceOwnerEmail;
+    const when = importedFrom.exportedAt ? formatDateShort(importedFrom.exportedAt) : null;
+
+    if (!who && !when) return 'Imported portfolio';
+    if (who && when) return `Imported from ${who} • Exported ${when}`;
+    if (who) return `Imported from ${who}`;
+    return `Imported • Exported ${when}`;
+  }, [activePortfolio?.importedFrom]);
+
   return (
     <div className="page portfolio-overview">
       <header className="overview-header">
@@ -162,6 +175,9 @@ export default function PortfolioOverviewPage() {
           <div className="overview-header__title-group">
             <h1 className="overview-header__title">Portfolio Overview</h1>
             <span className="overview-header__meta">{investments.length} holdings • Updated just now</span>
+            {importedFromMeta && (
+              <span className="overview-header__meta">{importedFromMeta}</span>
+            )}
           </div>
         </div>
         <div className="overview-header__center">
@@ -334,6 +350,12 @@ export default function PortfolioOverviewPage() {
       {showAddModal && <AddInvestmentModal onClose={() => setShowAddModal(false)} />}
     </div>
   );
+}
+
+function formatDateShort(value: string): string | null {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
 }
 
 function formatTypeName(type: string): string {

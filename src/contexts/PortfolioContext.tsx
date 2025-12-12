@@ -286,6 +286,30 @@ const toDomainPortfolio = (p: ApiPortfolio | ApiPortfolioSummary | ApiPortfolioD
     return typeof v === 'boolean' ? v : undefined;
   })();
 
+  const importedFrom = (() => {
+    const v = (p as { importedFrom?: unknown }).importedFrom;
+    if (!v || typeof v !== 'object') return undefined;
+    const obj = v as Record<string, unknown>;
+    const out: Portfolio['importedFrom'] = {};
+
+    const sourcePortfolioId = obj.sourcePortfolioId;
+    if (typeof sourcePortfolioId === 'string') out.sourcePortfolioId = sourcePortfolioId;
+
+    const sourceOwnerEmail = obj.sourceOwnerEmail;
+    if (typeof sourceOwnerEmail === 'string') out.sourceOwnerEmail = sourceOwnerEmail;
+
+    const sourceOwnerName = obj.sourceOwnerName;
+    if (typeof sourceOwnerName === 'string') out.sourceOwnerName = sourceOwnerName;
+
+    const exportedAt = obj.exportedAt;
+    if (typeof exportedAt === 'string') out.exportedAt = exportedAt;
+
+    const version = obj.version;
+    if (typeof version === 'string') out.version = version;
+
+    return Object.keys(out).length > 0 ? out : undefined;
+  })();
+
   return {
     id: p.id,
     name: p.name,
@@ -296,6 +320,7 @@ const toDomainPortfolio = (p: ApiPortfolio | ApiPortfolioSummary | ApiPortfolioD
     updatedAt: p.updatedAt,
     investments: [],
     sharedWith: [],
+    importedFrom,
     investmentCount,
     shareCount,
     permission,

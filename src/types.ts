@@ -325,6 +325,15 @@ export interface Portfolio {
   sharedWith: SharedUser[];
   tags?: string[];
 
+  // Optional provenance metadata (set on backend import)
+  importedFrom?: {
+    sourcePortfolioId?: string;
+    sourceOwnerEmail?: string;
+    sourceOwnerName?: string;
+    exportedAt?: string;
+    version?: string;
+  };
+
   // Optional backend-derived summary fields (used by collaboration UI)
   investmentCount?: number;
   shareCount?: number;

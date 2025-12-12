@@ -355,10 +355,15 @@ export async function portfolioRoutes(app: FastifyInstance) {
     // Transform response
     const data = portfolios.map((p) => ({
       ...p,
+      importedFrom:
+        p.settings && typeof p.settings === 'object'
+          ? (p.settings as any).importedFrom
+          : undefined,
       isOwner: p.ownerId === userId,
       permission: p.ownerId === userId ? 'OWNER' : p.shares[0]?.permission,
       investmentCount: p._count.investments,
       shareCount: p._count.shares,
+      settings: undefined,
       shares: undefined,
       _count: undefined,
     }));
@@ -459,8 +464,13 @@ export async function portfolioRoutes(app: FastifyInstance) {
       data: {
         portfolio: {
           ...portfolio,
+          importedFrom:
+            portfolio.settings && typeof portfolio.settings === 'object'
+              ? (portfolio.settings as any).importedFrom
+              : undefined,
           permission,
           isOwner: portfolio.ownerId === userId,
+          settings: undefined,
         },
       },
     });

@@ -372,6 +372,13 @@ export interface ApiPortfolio {
   investments?: ApiInvestment[];
   createdAt: string;
   updatedAt: string;
+  importedFrom?: {
+    sourcePortfolioId?: string;
+    sourceOwnerEmail?: string;
+    sourceOwnerName?: string;
+    exportedAt?: string;
+    version?: string;
+  };
 }
 
 export interface ApiPortfolioSummary extends ApiPortfolio {
