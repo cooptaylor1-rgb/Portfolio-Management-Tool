@@ -335,6 +335,8 @@ describe('collaboration routes (mocked prisma)', () => {
         exportedAt: new Date('2025-01-01T00:00:00.000Z').toISOString(),
         portfolios: [
           {
+            id: 'src_portfolio_1',
+            owner: { id: 'user_2', name: 'Bob', email: 'bob@example.com' },
             name: 'Imported',
             description: null,
             isPublic: false,
@@ -373,6 +375,13 @@ describe('collaboration routes (mocked prisma)', () => {
 
     const createArg = (prisma as any).portfolio.create.mock.calls[0][0];
     expect(createArg.data.ownerId).toBe('user_1');
+    expect(createArg.data.settings.importedFrom.sourcePortfolioId).toBe('src_portfolio_1');
+    expect(createArg.data.settings.importedFrom.sourceOwnerEmail).toBe('bob@example.com');
+    expect(createArg.data.settings.importedFrom.sourceOwnerName).toBe('Bob');
+    expect(createArg.data.settings.importedFrom.version).toBe('1');
+    expect(createArg.data.settings.importedFrom.exportedAt).toBe(
+      new Date('2025-01-01T00:00:00.000Z').toISOString()
+    );
     expect(createArg.data.investments.create[0].symbol).toBe('AAPL');
     expect(createArg.data.investments.create[0].type).toBe('STOCK');
     expect(createArg.data.investments.create[0].transactions.create[0].type).toBe('BUY');

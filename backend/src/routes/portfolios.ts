@@ -53,6 +53,19 @@ const exportImportTransactionTypeSchema = z
   .transform((value) => String(value).trim().toUpperCase());
 
 const exportPortfolioSchema = z.object({
+  // Optional metadata (ignored for data creation, but can be used for provenance)
+  id: z.string().optional(),
+  owner: z
+    .object({
+      id: z.string().optional(),
+      name: z.string().optional(),
+      email: z.string().email(),
+    })
+    .optional(),
+  permission: z.enum(['OWNER', 'VIEW', 'EDIT', 'ADMIN']).optional(),
+  isOwner: z.boolean().optional(),
+  investmentCount: z.coerce.number().optional(),
+  shareCount: z.coerce.number().optional(),
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional().nullable(),
   isPublic: z.boolean().optional().default(false),
@@ -190,12 +203,22 @@ export async function portfolioRoutes(app: FastifyInstance) {
     const created: Array<{ id: string; name: string }> = [];
 
     for (const portfolio of body.portfolios) {
+      const importedFrom: Record<string, string> = {};
+      if (portfolio.id) importedFrom.sourcePortfolioId = portfolio.id;
+      if (portfolio.owner?.email) importedFrom.sourceOwnerEmail = portfolio.owner.email;
+      if (portfolio.owner?.name) importedFrom.sourceOwnerName = portfolio.owner.name;
+      if (body.exportedAt) importedFrom.exportedAt = body.exportedAt;
+      if (body.version) importedFrom.version = body.version;
+
       const createdPortfolio = await prisma.portfolio.create({
         data: {
           name: portfolio.name,
           description: portfolio.description ?? undefined,
           isPublic: portfolio.isPublic ?? false,
           ownerId: userId,
+          settings: {
+            importedFrom,
+          },
           investments: {
             create: (portfolio.investments ?? []).map((inv) => ({
               symbol: inv.symbol.toUpperCase(),
