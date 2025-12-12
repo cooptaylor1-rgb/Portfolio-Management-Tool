@@ -9,7 +9,7 @@
  * - Data cleanup
  */
 
-import { Queue, Worker, Job, QueueScheduler } from 'bullmq';
+import { Queue, Worker, Job } from 'bullmq';
 import { redis } from '../lib/redis.js';
 import { prisma } from '../lib/prisma.js';
 import { emailService } from './email.js';
@@ -149,10 +149,10 @@ export function createEmailWorker() {
             );
             break;
           case 'weekly-report':
-            await emailService.sendWeeklyReport(to, data.name, data);
+            await emailService.sendWeeklyReport(to, (data as any).name, data as any);
             break;
           case 'login-alert':
-            await emailService.sendLoginAlert(to, data.name, data);
+            await emailService.sendLoginAlert(to, (data as any).name, data as any);
             break;
         }
 

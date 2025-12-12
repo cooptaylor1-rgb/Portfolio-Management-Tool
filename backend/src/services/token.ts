@@ -5,6 +5,12 @@ import { prisma } from '../lib/prisma.js';
 import { config } from '../config/index.js';
 import { ApiError } from '../middleware/errorHandler.js';
 
+type JwtExpiresIn = NonNullable<Parameters<typeof jwt.sign>[2]> extends infer Opt
+  ? Opt extends { expiresIn?: infer E }
+    ? E
+    : unknown
+  : unknown;
+
 interface TokenPayload {
   userId: string;
   type: 'access' | 'refresh';
@@ -24,7 +30,7 @@ export async function createTokens(userId: string, deviceInfo: DeviceInfo) {
   const accessToken = jwt.sign(
     { userId, type: 'access' } as TokenPayload,
     config.jwt.accessSecret,
-    { expiresIn: config.jwt.accessExpiry }
+    { expiresIn: config.jwt.accessExpiry as JwtExpiresIn }
   );
 
   // Generate refresh token
@@ -32,7 +38,7 @@ export async function createTokens(userId: string, deviceInfo: DeviceInfo) {
   const refreshToken = jwt.sign(
     { userId, type: 'refresh', tokenId: refreshTokenId } as TokenPayload,
     config.jwt.refreshSecret,
-    { expiresIn: config.jwt.refreshExpiry }
+    { expiresIn: config.jwt.refreshExpiry as JwtExpiresIn }
   );
 
   // Hash refresh token for storage

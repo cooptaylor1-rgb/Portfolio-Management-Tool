@@ -29,7 +29,15 @@ class RealTimeMarketService {
   private isConnecting = false;
   private latestQuotes = new Map<string, Quote>();
 
-  private wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3001/api/v2/market/stream';
+  private wsUrl = (() => {
+    const explicit = import.meta.env.VITE_WS_URL as string | undefined;
+    if (explicit) return explicit;
+
+    const apiOrigin = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const wsScheme = apiOrigin.startsWith('https://') ? 'wss://' : 'ws://';
+    const host = apiOrigin.replace(/^https?:\/\//, '');
+    return `${wsScheme}${host}/api/v2/market/stream`;
+  })();
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {

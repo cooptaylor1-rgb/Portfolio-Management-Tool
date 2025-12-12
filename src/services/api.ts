@@ -5,7 +5,10 @@
  * Handles authentication, caching, error handling, and retry logic.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v2';
+// VITE_API_URL is the backend origin (e.g. http://localhost:3000)
+// We consistently target the versioned REST API under /api/v2
+const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
+const API_BASE = `${API_ORIGIN}/api/v2`;
 
 interface ApiResponse<T> {
   success: boolean;

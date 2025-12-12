@@ -303,9 +303,9 @@ export async function authRoutes(app: FastifyInstance) {
     {
       preHandler: [app.authenticate],
     },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request: FastifyRequest, reply: FastifyReply) => {
       const userId = request.user.id;
-      const sessionId = request.params.id;
+      const sessionId = (request.params as any).id as string;
 
       const session = await prisma.refreshToken.findFirst({
         where: {

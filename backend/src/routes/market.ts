@@ -240,7 +240,7 @@ export async function marketRoutes(app: FastifyInstance) {
   app.get('/stream', { websocket: true }, (socket, request) => {
     const subscriptions = new Set<string>();
 
-    socket.on('message', async (message) => {
+    socket.on('message', async (message: Buffer) => {
       try {
         const data = JSON.parse(message.toString());
 
@@ -327,7 +327,7 @@ async function fetchFromFactSet(symbol: string) {
     throw new Error(`FactSet API error: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data: any = await response.json();
   const item = data.data?.[0];
 
   if (!item) {
@@ -352,7 +352,7 @@ async function fetchFromAlphaVantage(symbol: string) {
     throw new Error(`Alpha Vantage API error: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data: any = await response.json();
   const quote = data['Global Quote'];
 
   if (!quote || !quote['05. price']) {

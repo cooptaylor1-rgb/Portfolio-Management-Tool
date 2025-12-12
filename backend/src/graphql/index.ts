@@ -16,14 +16,14 @@ import { verifyAccessToken } from '../services/token.js';
  */
 export async function registerGraphQL(app: FastifyInstance) {
   // Register Mercurius GraphQL
-  await app.register(mercurius, {
+  await app.register(mercurius as any, {
     schema: typeDefs,
-    resolvers,
+    resolvers: resolvers as any,
     graphiql: process.env.NODE_ENV !== 'production',
     path: '/graphql',
     
     // Context builder - runs for each request
-    context: async (request, reply) => {
+    context: async (request: any, reply: any) => {
       let user = null;
 
       // Extract and verify JWT token
@@ -42,8 +42,8 @@ export async function registerGraphQL(app: FastifyInstance) {
     },
 
     // Error formatter
-    errorFormatter: (execution, context) => {
-      const errors = execution.errors?.map((error) => {
+    errorFormatter: (execution: any, context: any) => {
+      const errors = execution.errors?.map((error: any) => {
         // Don't expose internal errors in production
         if (process.env.NODE_ENV === 'production') {
           const code = error.extensions?.code;
@@ -71,7 +71,7 @@ export async function registerGraphQL(app: FastifyInstance) {
 
     // JIT compilation for better performance
     jit: 1,
-  });
+  } as any);
 
   app.log.info('GraphQL server registered at /graphql');
 }

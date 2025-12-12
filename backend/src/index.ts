@@ -28,7 +28,22 @@ const app = Fastify({
 
 // Register plugins
 await app.register(cors, {
-  origin: config.corsOrigin,
+  origin: (origin, cb) => {
+    // Non-browser callers (curl, server-to-server) may omit Origin.
+    if (!origin) return cb(null, true);
+
+    // In development, Vite will often hop ports (5173, 5174, ...). Allow localhost ports.
+    if (config.isDev && /^http:\/\/localhost:\d+$/.test(origin)) {
+      return cb(null, true);
+    }
+
+    // In production, enforce configured allowlist.
+    if (config.corsOrigin.includes(origin)) {
+      return cb(null, true);
+    }
+
+    return cb(new Error('CORS origin not allowed'), false);
+  },
   credentials: true,
 });
 

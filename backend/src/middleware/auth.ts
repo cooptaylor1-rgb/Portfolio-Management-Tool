@@ -1,16 +1,19 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 import { verifyAccessToken } from '../services/token.js';
 import { ApiError } from './errorHandler.js';
 
-declare module 'fastify' {
-  interface FastifyInstance {
-    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
-  }
-  interface FastifyRequest {
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
     user: {
       id: string;
     };
+  }
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
 }
 

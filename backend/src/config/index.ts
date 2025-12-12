@@ -8,6 +8,7 @@ const envSchema = z.object({
   PORT: z.string().default('3000'),
   HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  FRONTEND_URL: z.string().default('http://localhost:5173'),
   DATABASE_URL: z.string(),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   JWT_ACCESS_SECRET: z.string().min(32),
@@ -17,6 +18,12 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   RATE_LIMIT_MAX: z.string().default('100'),
   RATE_LIMIT_WINDOW_MS: z.string().default('60000'),
+  // Email (optional)
+  EMAIL_PROVIDER: z.enum(['console', 'sendgrid', 'ses', 'resend', 'smtp']).default('console'),
+  EMAIL_FROM_NAME: z.string().optional(),
+  EMAIL_FROM_ADDRESS: z.string().optional(),
+  SENDGRID_API_KEY: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
   // API Keys (optional)
   FACTSET_USERNAME: z.string().optional(),
   FACTSET_API_KEY: z.string().optional(),
@@ -34,6 +41,9 @@ export const config = {
   isDev: env.NODE_ENV === 'development',
   isProd: env.NODE_ENV === 'production',
   version: '1.0.0',
+
+  // Frontend
+  frontendUrl: env.FRONTEND_URL,
 
   // Database
   databaseUrl: env.DATABASE_URL,
@@ -56,6 +66,15 @@ export const config = {
   rateLimit: {
     max: parseInt(env.RATE_LIMIT_MAX, 10),
     windowMs: parseInt(env.RATE_LIMIT_WINDOW_MS, 10),
+  },
+
+  // Email
+  email: {
+    provider: env.EMAIL_PROVIDER,
+    fromName: env.EMAIL_FROM_NAME,
+    fromAddress: env.EMAIL_FROM_ADDRESS,
+    sendgridApiKey: env.SENDGRID_API_KEY,
+    resendApiKey: env.RESEND_API_KEY,
   },
 
   // API Keys

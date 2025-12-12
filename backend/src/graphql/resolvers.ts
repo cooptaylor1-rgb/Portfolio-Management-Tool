@@ -51,7 +51,7 @@ async function checkPortfolioAccess(
     });
   }
 
-  const isOwner = portfolio.userId === userId;
+  const isOwner = portfolio.ownerId === userId;
   const share = portfolio.shares[0];
 
   if (!isOwner && !share) {
@@ -140,7 +140,7 @@ export const resolvers = {
 
       const where: any = {
         OR: [
-          { userId: user.id },
+          { ownerId: user.id },
           ...(filter?.includeShared !== false
             ? [{ shares: { some: { userId: user.id } } }]
             : []),
@@ -206,7 +206,7 @@ export const resolvers = {
       const user = requireAuth(context);
       return prisma.watchlistItem.findMany({
         where: { userId: user.id },
-        orderBy: { addedAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
       });
     },
 
@@ -438,21 +438,20 @@ export const resolvers = {
         where: { portfolioId: portfolio.id },
       });
 
-      const totalValue = investments.reduce(
-        (sum, inv) => sum + Number(inv.shares) * Number(inv.avgCost),
-        0
-      );
+      const totalValue = investments.reduce((sum, inv) => {
+        return sum + Number(inv.quantity) * Number(inv.purchasePrice);
+      }, 0);
 
       return args.input.targetAllocations.map((target: any) => {
         const investment = investments.find((i) => i.symbol === target.symbol);
         const currentValue = investment
-          ? Number(investment.shares) * Number(investment.avgCost)
+          ? Number(investment.quantity) * Number(investment.purchasePrice)
           : 0;
         const currentPercent = totalValue > 0 ? (currentValue / totalValue) * 100 : 0;
         const targetValue = (totalValue * target.targetPercent) / 100;
-        const currentPrice = investment ? Number(investment.avgCost) : 100;
+        const currentPrice = investment ? Number(investment.purchasePrice) : 100;
         const suggestedShares = targetValue / currentPrice;
-        const currentShares = investment ? Number(investment.shares) : 0;
+        const currentShares = investment ? Number(investment.quantity) : 0;
 
         return {
           symbol: target.symbol,
@@ -477,10 +476,13 @@ export const resolvers = {
     // Portfolio mutations
     createPortfolio: async (_: any, args: { input: any }, context: Context) => {
       const user = requireAuth(context);
+      const { name, description, isPublic } = args.input;
       return prisma.portfolio.create({
         data: {
-          ...args.input,
-          userId: user.id,
+          name,
+          description,
+          isPublic,
+          ownerId: user.id,
         },
         include: { investments: true, owner: true },
       });
@@ -489,9 +491,15 @@ export const resolvers = {
     updatePortfolio: async (_: any, args: { id: string; input: any }, context: Context) => {
       const user = requireAuth(context);
       await checkPortfolioAccess(args.id, user.id, 'EDIT');
+
+      const data: any = {};
+      if (args.input?.name !== undefined) data.name = args.input.name;
+      if (args.input?.description !== undefined) data.description = args.input.description;
+      if (args.input?.isPublic !== undefined) data.isPublic = args.input.isPublic;
+
       return prisma.portfolio.update({
         where: { id: args.id },
-        data: args.input,
+        data,
         include: { investments: true, owner: true },
       });
     },
@@ -500,7 +508,7 @@ export const resolvers = {
       const user = requireAuth(context);
       const portfolio = await checkPortfolioAccess(args.id, user.id, 'ADMIN');
 
-      if (portfolio.userId !== user.id) {
+      if (portfolio.ownerId !== user.id) {
         throw new GraphQLError('Only the owner can delete a portfolio', {
           extensions: { code: 'FORBIDDEN' },
         });
@@ -539,8 +547,20 @@ export const resolvers = {
       const user = requireAuth(context);
       await checkPortfolioAccess(args.input.portfolioId, user.id, 'EDIT');
 
+      const { portfolioId, symbol, name, type, shares, avgCost, sector, notes } = args.input;
+
       return prisma.investment.create({
-        data: args.input,
+        data: {
+          portfolioId,
+          symbol,
+          name,
+          type,
+          quantity: shares,
+          purchasePrice: avgCost,
+          purchaseDate: new Date(),
+          sector,
+          notes,
+        },
         include: { transactions: true },
       });
     },
@@ -558,9 +578,16 @@ export const resolvers = {
       }
 
       await checkPortfolioAccess(investment.portfolioId, user.id, 'EDIT');
+
+      const data: any = {};
+      if (args.input?.shares !== undefined) data.quantity = args.input.shares;
+      if (args.input?.avgCost !== undefined) data.purchasePrice = args.input.avgCost;
+      if (args.input?.sector !== undefined) data.sector = args.input.sector;
+      if (args.input?.notes !== undefined) data.notes = args.input.notes;
+
       return prisma.investment.update({
         where: { id: args.id },
-        data: args.input,
+        data,
       });
     },
 
@@ -596,9 +623,12 @@ export const resolvers = {
 
       await checkPortfolioAccess(investment.portfolioId, user.id, 'EDIT');
 
+      const { shares, ...rest } = args.input;
+
       return prisma.transaction.create({
         data: {
-          ...args.input,
+          ...rest,
+          quantity: shares,
           date: args.input.date || new Date(),
         },
         include: { investment: true },
@@ -651,7 +681,7 @@ export const resolvers = {
   User: {
     portfolios: async (parent: { id: string }) => {
       return prisma.portfolio.findMany({
-        where: { userId: parent.id },
+        where: { ownerId: parent.id },
       });
     },
     watchlist: async (parent: { id: string }) => {
@@ -667,9 +697,10 @@ export const resolvers = {
   },
 
   Portfolio: {
-    owner: async (parent: { userId: string }) => {
+    currency: () => 'USD',
+    owner: async (parent: any) => {
       return prisma.user.findUnique({
-        where: { id: parent.userId },
+        where: { id: parent.ownerId },
       });
     },
     investments: async (parent: { id: string }) => {
@@ -702,7 +733,7 @@ export const resolvers = {
         where: { portfolioId: parent.id },
       });
       return investments.reduce(
-        (sum, inv) => sum + Number(inv.shares) * Number(inv.avgCost) * 1.1,
+        (sum, inv) => sum + Number(inv.quantity) * Number(inv.purchasePrice) * 1.1,
         0
       );
     },
@@ -726,6 +757,9 @@ export const resolvers = {
   },
 
   Investment: {
+    shares: (parent: any) => parent.quantity,
+    avgCost: (parent: any) => parent.purchasePrice,
+    currency: () => 'USD',
     transactions: async (parent: { id: string }) => {
       return prisma.transaction.findMany({
         where: { investmentId: parent.id },
@@ -733,10 +767,10 @@ export const resolvers = {
       });
     },
     currentPrice: () => 155.5,
-    currentValue: (parent: any) => Number(parent.shares) * 155.5,
-    gain: (parent: any) => Number(parent.shares) * (155.5 - Number(parent.avgCost)),
+    currentValue: (parent: any) => Number(parent.quantity) * 155.5,
+    gain: (parent: any) => Number(parent.quantity) * (155.5 - Number(parent.purchasePrice)),
     gainPercent: (parent: any) =>
-      ((155.5 - Number(parent.avgCost)) / Number(parent.avgCost)) * 100,
+      ((155.5 - Number(parent.purchasePrice)) / Number(parent.purchasePrice)) * 100,
     dayChange: () => 2.5,
     dayChangePercent: () => 1.6,
     weight: () => 15,
@@ -749,7 +783,7 @@ export const resolvers = {
       });
     },
     totalCost: (parent: any) =>
-      Number(parent.shares) * Number(parent.price) + Number(parent.fees),
+      Number(parent.quantity) * Number(parent.price) + Number(parent.fees),
   },
 
   PortfolioShare: {
