@@ -337,7 +337,7 @@ export default function PortfolioOverviewPage() {
 }
 
 function formatTypeName(type: string): string {
-  const names: Record<string, string> = { stock: 'Stocks', etf: 'ETFs', bond: 'Bonds', crypto: 'Crypto', mutual_fund: 'Mutual Funds', other: 'Other' };
+  const names: Record<string, string> = { stock: 'Stocks', etf: 'ETFs', bond: 'Bonds', crypto: 'Crypto', 'mutual-fund': 'Mutual Funds', other: 'Other' };
   return names[type] || type.charAt(0).toUpperCase() + type.slice(1);
 }
 
@@ -357,7 +357,7 @@ function formatDate(dateStr: string): string {
 
 function AddInvestmentModal({ onClose }: { onClose: () => void }) {
   const { addInvestment } = usePortfolio();
-  const [form, setForm] = useState<{ symbol: string; name: string; type: 'stock' | 'etf' | 'bond' | 'crypto' | 'mutual_fund' | 'other'; quantity: string; purchasePrice: string; purchaseDate: string; sector: string; }>({
+  const [form, setForm] = useState<{ symbol: string; name: string; type: 'stock' | 'etf' | 'bond' | 'crypto' | 'mutual-fund' | 'other'; quantity: string; purchasePrice: string; purchaseDate: string; sector: string; }>({
     symbol: '', name: '', type: 'stock', quantity: '', purchasePrice: '', purchaseDate: new Date().toISOString().split('T')[0], sector: '',
   });
 
@@ -374,7 +374,7 @@ function AddInvestmentModal({ onClose }: { onClose: () => void }) {
         <form onSubmit={handleSubmit}>
           <div className="modal__body">
             <div className="form-row"><div className="form-group"><label className="form-label">Symbol</label><input className="form-input" value={form.symbol} onChange={e => setForm({ ...form, symbol: e.target.value })} placeholder="AAPL" required /></div><div className="form-group"><label className="form-label">Name</label><input className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Apple Inc." required /></div></div>
-            <div className="form-row"><div className="form-group"><label className="form-label">Type</label><select className="form-select" value={form.type} onChange={e => setForm({ ...form, type: e.target.value as typeof form.type })}><option value="stock">Stock</option><option value="etf">ETF</option><option value="bond">Bond</option><option value="crypto">Crypto</option><option value="mutual_fund">Mutual Fund</option><option value="other">Other</option></select></div><div className="form-group"><label className="form-label">Sector</label><input className="form-input" value={form.sector} onChange={e => setForm({ ...form, sector: e.target.value })} placeholder="Technology" /></div></div>
+            <div className="form-row"><div className="form-group"><label className="form-label">Type</label><select className="form-select" value={form.type} onChange={e => setForm({ ...form, type: e.target.value as typeof form.type })}><option value="stock">Stock</option><option value="etf">ETF</option><option value="bond">Bond</option><option value="crypto">Crypto</option><option value="mutual-fund">Mutual Fund</option><option value="other">Other</option></select></div><div className="form-group"><label className="form-label">Sector</label><input className="form-input" value={form.sector} onChange={e => setForm({ ...form, sector: e.target.value })} placeholder="Technology" /></div></div>
             <div className="form-row"><div className="form-group"><label className="form-label">Quantity</label><input type="number" step="any" className="form-input" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} placeholder="100" required /></div><div className="form-group"><label className="form-label">Purchase Price</label><input type="number" step="0.01" className="form-input" value={form.purchasePrice} onChange={e => setForm({ ...form, purchasePrice: e.target.value })} placeholder="150.00" required /></div></div>
             <div className="form-group"><label className="form-label">Purchase Date</label><input type="date" className="form-input" value={form.purchaseDate} onChange={e => setForm({ ...form, purchaseDate: e.target.value })} required /></div>
           </div>

@@ -16,7 +16,7 @@ export interface Investment {
 export interface Transaction {
   id: string;
   investmentId: string;
-  type: 'buy' | 'sell' | 'dividend';
+  type: 'buy' | 'sell' | 'dividend' | 'interest' | 'fee' | 'transfer' | 'split';
   quantity: number;
   price: number;
   date: string;

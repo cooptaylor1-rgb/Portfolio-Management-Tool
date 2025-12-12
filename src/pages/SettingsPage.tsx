@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { Save, Moon, Sun, Bell, Shield, Download, Trash2, RefreshCw, DollarSign, Palette, Globe } from 'lucide-react';
+import { api } from '../services/api';
 import './pages.css';
 
 interface AppSettings {
@@ -81,15 +82,43 @@ export default function SettingsPage() {
     }
   };
 
-  const handleExportData = () => {
-    const data = {
+  const handleExportData = async () => {
+    const readFirst = (keys: string[]) => {
+      for (const k of keys) {
+        const raw = localStorage.getItem(k);
+        if (raw) return raw;
+      }
+      return null;
+    };
+
+    const base = {
       settings,
-      investments: JSON.parse(localStorage.getItem('portfolioInvestments') || '[]'),
-      transactions: JSON.parse(localStorage.getItem('portfolioTransactions') || '[]'),
       watchlist: JSON.parse(localStorage.getItem('watchlist') || '[]'),
       journal: JSON.parse(localStorage.getItem('tradeJournal') || '[]'),
       exportedAt: new Date().toISOString(),
     };
+
+    let data: unknown = null;
+
+    if (api.isAuthenticated()) {
+      const exported = await api.exportPortfolios();
+      if (exported.success && exported.data) {
+        data = {
+          ...base,
+          portfolios: exported.data,
+        };
+      }
+    }
+
+    if (!data) {
+      const investmentsRaw = readFirst(['portfolioInvestments', 'portfolio_investments']);
+      const transactionsRaw = readFirst(['portfolioTransactions', 'portfolio_transactions']);
+      data = {
+        ...base,
+        investments: JSON.parse(investmentsRaw || '[]'),
+        transactions: JSON.parse(transactionsRaw || '[]'),
+      };
+    }
     
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -104,6 +133,8 @@ export default function SettingsPage() {
     if (confirm('This will delete all your portfolio data. Are you sure?')) {
       localStorage.removeItem('portfolioInvestments');
       localStorage.removeItem('portfolioTransactions');
+      localStorage.removeItem('portfolio_investments');
+      localStorage.removeItem('portfolio_transactions');
       localStorage.removeItem('watchlist');
       localStorage.removeItem('tradeJournal');
       window.location.reload();

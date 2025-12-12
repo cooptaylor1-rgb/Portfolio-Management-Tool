@@ -183,22 +183,22 @@ class ApiClient {
 
   // Portfolio endpoints
   async getPortfolios() {
-    return this.request<{ portfolios: PortfolioSummary[] }>('/portfolios');
+    return this.request<{ portfolios: ApiPortfolioSummary[] }>('/portfolios');
   }
 
   async getPortfolio(id: string) {
-    return this.request<{ portfolio: PortfolioDetail }>(`/portfolios/${id}`);
+    return this.request<{ portfolio: ApiPortfolioDetail }>(`/portfolios/${id}`);
   }
 
   async createPortfolio(data: { name: string; description?: string; isPublic?: boolean }) {
-    return this.request<{ portfolio: Portfolio }>('/portfolios', {
+    return this.request<{ portfolio: ApiPortfolio }>('/portfolios', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async updatePortfolio(id: string, data: Partial<{ name: string; description: string; isPublic: boolean }>) {
-    return this.request<{ portfolio: Portfolio }>(`/portfolios/${id}`, {
+    return this.request<{ portfolio: ApiPortfolio }>(`/portfolios/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -209,7 +209,7 @@ class ApiClient {
   }
 
   async sharePortfolio(portfolioId: string, email: string, permission: 'VIEW' | 'EDIT' | 'ADMIN') {
-    return this.request<{ share: PortfolioShare }>(`/portfolios/${portfolioId}/share`, {
+    return this.request<{ share: ApiPortfolioShare }>(`/portfolios/${portfolioId}/share`, {
       method: 'POST',
       body: JSON.stringify({ email, permission }),
     });
@@ -222,11 +222,26 @@ class ApiClient {
   }
 
   async getPortfolioActivity(portfolioId: string, limit: number = 50) {
-    return this.request<{ activities: PortfolioActivityRow[] }>(`/portfolios/${portfolioId}/activity?limit=${limit}`);
+    return this.request<{ activities: ApiPortfolioActivityRow[] }>(`/portfolios/${portfolioId}/activity?limit=${limit}`);
   }
 
   async getUserActivity(limit: number = 50) {
-    return this.request<{ activities: PortfolioActivityRow[] }>(`/portfolios/activity?limit=${limit}`);
+    return this.request<{ activities: ApiPortfolioActivityRow[] }>(`/portfolios/activity?limit=${limit}`);
+  }
+
+  // Import/export endpoints
+  async exportPortfolios() {
+    return this.request<ApiPortfoliosExport>(`/portfolios/export`);
+  }
+
+  async importPortfolios(payload: ApiPortfoliosImport) {
+    return this.request<{ importedCount: number; portfolios: Array<{ id: string; name: string }> }>(
+      `/portfolios/import`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
   }
 
   async searchUsers(query: string, limit: number = 10) {
@@ -235,15 +250,15 @@ class ApiClient {
   }
 
   // Investment endpoints
-  async addInvestment(portfolioId: string, investment: CreateInvestmentData) {
-    return this.request<{ investment: Investment }>(`/portfolios/${portfolioId}/investments`, {
+  async addInvestment(portfolioId: string, investment: ApiCreateInvestmentData) {
+    return this.request<{ investment: ApiInvestment }>(`/portfolios/${portfolioId}/investments`, {
       method: 'POST',
       body: JSON.stringify(investment),
     });
   }
 
-  async updateInvestment(portfolioId: string, investmentId: string, data: Partial<Investment>) {
-    return this.request<{ investment: Investment }>(
+  async updateInvestment(portfolioId: string, investmentId: string, data: Partial<ApiInvestment>) {
+    return this.request<{ investment: ApiInvestment }>(
       `/portfolios/${portfolioId}/investments/${investmentId}`,
       {
         method: 'PUT',
@@ -258,8 +273,8 @@ class ApiClient {
     });
   }
 
-  async recordTransaction(portfolioId: string, investmentId: string, transaction: TransactionData) {
-    return this.request<{ transaction: Transaction }>(
+  async recordTransaction(portfolioId: string, investmentId: string, transaction: ApiTransactionData) {
+    return this.request<{ transaction: ApiTransaction }>(
       `/portfolios/${portfolioId}/investments/${investmentId}/transactions`,
       {
         method: 'POST',
@@ -270,11 +285,11 @@ class ApiClient {
 
   // Market data endpoints
   async getQuote(symbol: string) {
-    return this.request<Quote>(`/market/quote/${symbol}`);
+    return this.request<ApiQuote>(`/market/quote/${symbol}`);
   }
 
   async getBatchQuotes(symbols: string[]) {
-    return this.request<{ quotes: Quote[] }>('/market/quotes', {
+    return this.request<{ quotes: ApiQuote[] }>('/market/quotes', {
       method: 'POST',
       body: JSON.stringify({ symbols }),
     });
@@ -287,15 +302,15 @@ class ApiClient {
     if (options?.interval) params.append('interval', options.interval);
     
     const query = params.toString() ? `?${params.toString()}` : '';
-    return this.request<{ symbol: string; data: HistoricalDataPoint[] }>(`/market/historical/${symbol}${query}`);
+    return this.request<{ symbol: string; data: ApiHistoricalDataPoint[] }>(`/market/historical/${symbol}${query}`);
   }
 
   async getFundamentals(symbol: string) {
-    return this.request<Fundamentals>(`/market/fundamentals/${symbol}`);
+    return this.request<ApiFundamentals>(`/market/fundamentals/${symbol}`);
   }
 
   async searchSymbols(query: string) {
-    return this.request<{ results: SymbolSearchResult[] }>(`/market/search?q=${encodeURIComponent(query)}`);
+    return this.request<{ results: ApiSymbolSearchResult[] }>(`/market/search?q=${encodeURIComponent(query)}`);
   }
 
   async getMarketNews(symbols?: string[], limit?: number) {
@@ -304,24 +319,24 @@ class ApiClient {
     if (limit) params.append('limit', limit.toString());
     
     const query = params.toString() ? `?${params.toString()}` : '';
-    return this.request<{ news: NewsItem[] }>(`/market/news${query}`);
+    return this.request<{ news: ApiNewsItem[] }>(`/market/news${query}`);
   }
 
   // Analytics endpoints
   async getPortfolioAnalytics(portfolioId: string) {
-    return this.request<PortfolioAnalytics>(`/analytics/portfolio/${portfolioId}`);
+    return this.request<ApiPortfolioAnalytics>(`/analytics/portfolio/${portfolioId}`);
   }
 
   async getRiskMetrics(portfolioId: string) {
-    return this.request<RiskMetrics>(`/analytics/risk/${portfolioId}`);
+    return this.request<ApiRiskMetrics>(`/analytics/risk/${portfolioId}`);
   }
 
   async getCorrelationMatrix(portfolioId: string) {
-    return this.request<CorrelationMatrix>(`/analytics/correlation/${portfolioId}`);
+    return this.request<ApiCorrelationMatrix>(`/analytics/correlation/${portfolioId}`);
   }
 
   async runScenarioAnalysis(portfolioId: string, scenario: ScenarioParams) {
-    return this.request<ScenarioResult>(`/analytics/scenario/${portfolioId}`, {
+    return this.request<ApiScenarioResult>(`/analytics/scenario/${portfolioId}`, {
       method: 'POST',
       body: JSON.stringify(scenario),
     });
@@ -342,25 +357,25 @@ export interface ApiUser {
   createdAt: string;
 }
 
-export interface Portfolio {
+export interface ApiPortfolio {
   id: string;
   name: string;
   description?: string;
   isPublic: boolean;
   ownerId: string;
-  investments?: Investment[];
+  investments?: ApiInvestment[];
   createdAt: string;
   updatedAt: string;
 }
 
-export interface PortfolioSummary extends Portfolio {
+export interface ApiPortfolioSummary extends ApiPortfolio {
   investmentCount?: number;
   shareCount?: number;
   permission?: 'OWNER' | 'VIEW' | 'EDIT' | 'ADMIN';
   isOwner?: boolean;
 }
 
-export interface PortfolioShare {
+export interface ApiPortfolioShare {
   portfolioId: string;
   userId: string;
   permission: 'VIEW' | 'EDIT' | 'ADMIN';
@@ -368,14 +383,14 @@ export interface PortfolioShare {
   user?: ApiUser;
 }
 
-export interface PortfolioDetail extends Portfolio {
-  investments?: Investment[];
-  shares?: PortfolioShare[];
+export interface ApiPortfolioDetail extends ApiPortfolio {
+  investments?: ApiInvestment[];
+  shares?: ApiPortfolioShare[];
   permission?: 'OWNER' | 'VIEW' | 'EDIT' | 'ADMIN';
   isOwner?: boolean;
 }
 
-export interface PortfolioActivityRow {
+export interface ApiPortfolioActivityRow {
   id: string;
   portfolioId: string;
   userId: string;
@@ -386,7 +401,7 @@ export interface PortfolioActivityRow {
   portfolio?: { id: string; name: string };
 }
 
-export interface Investment {
+export interface ApiInvestment {
   id: string;
   symbol: string;
   name: string;
@@ -399,7 +414,7 @@ export interface Investment {
   notes?: string;
 }
 
-export interface CreateInvestmentData {
+export interface ApiCreateInvestmentData {
   symbol: string;
   name: string;
   type: 'STOCK' | 'BOND' | 'ETF' | 'MUTUAL_FUND' | 'CRYPTO' | 'OTHER';
@@ -410,25 +425,92 @@ export interface CreateInvestmentData {
   notes?: string;
 }
 
-export interface Transaction {
+export interface ApiTransaction {
   id: string;
   investmentId: string;
-  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'SPLIT';
+  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'SPLIT' | 'TRANSFER_IN' | 'TRANSFER_OUT';
   quantity: number;
   price: number;
+  fees?: number;
   date: string;
   notes?: string;
 }
 
-export interface TransactionData {
-  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'SPLIT';
+export interface ApiTransactionData {
+  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'SPLIT' | 'TRANSFER_IN' | 'TRANSFER_OUT';
   quantity: number;
   price: number;
+  fees?: number;
   date: string;
   notes?: string;
 }
 
-export interface Quote {
+export interface ApiPortfoliosExport {
+  version: string;
+  exportedAt: string;
+  portfolios: ApiPortfolioExport[];
+}
+
+export interface ApiPortfoliosImport {
+  version?: string;
+  exportedAt?: string;
+  portfolios: ApiPortfolioExport[];
+}
+
+export interface ApiPortfolioExport {
+  name: string;
+  description?: string | null;
+  isPublic?: boolean;
+  investments?: ApiPortfolioExportInvestment[];
+}
+
+export interface ApiPortfolioExportInvestment {
+  symbol: string;
+  name: string;
+  type:
+    | 'STOCK'
+    | 'BOND'
+    | 'ETF'
+    | 'MUTUAL_FUND'
+    | 'CRYPTO'
+    | 'OTHER'
+    | 'stock'
+    | 'bond'
+    | 'etf'
+    | 'mutual-fund'
+    | 'mutual_fund'
+    | 'crypto'
+    | 'other';
+  quantity: number;
+  purchasePrice: number;
+  purchaseDate: string;
+  sector?: string | null;
+  notes?: string | null;
+  transactions?: ApiPortfolioExportTransaction[];
+}
+
+export interface ApiPortfolioExportTransaction {
+  type:
+    | 'BUY'
+    | 'SELL'
+    | 'DIVIDEND'
+    | 'SPLIT'
+    | 'TRANSFER_IN'
+    | 'TRANSFER_OUT'
+    | 'buy'
+    | 'sell'
+    | 'dividend'
+    | 'split'
+    | 'transfer_in'
+    | 'transfer_out';
+  quantity: number;
+  price: number;
+  fees?: number | null;
+  date: string;
+  notes?: string | null;
+}
+
+export interface ApiQuote {
   symbol: string;
   price: number;
   change: number;
@@ -438,7 +520,7 @@ export interface Quote {
   mock?: boolean;
 }
 
-export interface HistoricalDataPoint {
+export interface ApiHistoricalDataPoint {
   date: string;
   open: number;
   high: number;
@@ -447,7 +529,7 @@ export interface HistoricalDataPoint {
   volume: number;
 }
 
-export interface Fundamentals {
+export interface ApiFundamentals {
   symbol: string;
   companyName: string;
   sector: string;
@@ -463,13 +545,13 @@ export interface Fundamentals {
   roa?: number;
 }
 
-export interface SymbolSearchResult {
+export interface ApiSymbolSearchResult {
   symbol: string;
   name: string;
   type: string;
 }
 
-export interface NewsItem {
+export interface ApiNewsItem {
   id: string;
   title: string;
   source: string;
@@ -479,7 +561,7 @@ export interface NewsItem {
   symbols?: string[];
 }
 
-export interface PortfolioAnalytics {
+export interface ApiPortfolioAnalytics {
   totalValue: number;
   totalInvested: number;
   totalReturn: number;
@@ -490,7 +572,7 @@ export interface PortfolioAnalytics {
   sectorAllocations: { sector: string; value: number; percent: number }[];
 }
 
-export interface RiskMetrics {
+export interface ApiRiskMetrics {
   volatility: number;
   sharpeRatio: number;
   beta: number;
@@ -500,7 +582,7 @@ export interface RiskMetrics {
   sortino: number;
 }
 
-export interface CorrelationMatrix {
+export interface ApiCorrelationMatrix {
   symbols: string[];
   matrix: number[][];
 }
@@ -510,7 +592,7 @@ export interface ScenarioParams {
   parameters?: Record<string, number>;
 }
 
-export interface ScenarioResult {
+export interface ApiScenarioResult {
   scenario: string;
   portfolioImpact: number;
   impactPercent: number;

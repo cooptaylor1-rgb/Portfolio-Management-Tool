@@ -9,11 +9,18 @@
  */
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { api, Portfolio, Investment as ApiInvestment } from '../services/api';
+import { api, ApiInvestment, ApiPortfolio, ApiPortfolioDetail, ApiPortfolioSummary } from '../services/api';
 import { realTimeMarket } from '../services/realTimeMarket';
+import type {
+  Portfolio as DomainPortfolio,
+  Investment as DomainInvestment,
+  Transaction as DomainTransaction,
+  PortfolioStats,
+  RiskMetrics,
+} from '../types';
 
 // Type conversion helpers
-type FrontendInvestmentType = 'stock' | 'etf' | 'bond' | 'crypto' | 'mutual_fund' | 'other';
+type FrontendInvestmentType = DomainInvestment['type'];
 type ApiInvestmentType = 'STOCK' | 'ETF' | 'BOND' | 'CRYPTO' | 'MUTUAL_FUND' | 'OTHER';
 
 const typeToApi = (type: FrontendInvestmentType): ApiInvestmentType => {
@@ -22,59 +29,57 @@ const typeToApi = (type: FrontendInvestmentType): ApiInvestmentType => {
     etf: 'ETF',
     bond: 'BOND',
     crypto: 'CRYPTO',
-    mutual_fund: 'MUTUAL_FUND',
+    'mutual-fund': 'MUTUAL_FUND',
     other: 'OTHER',
   };
   return map[type] || 'OTHER';
 };
 
-// Frontend-friendly types
-export interface Investment {
-  id: string;
-  name: string;
-  symbol: string;
-  type: FrontendInvestmentType;
-  quantity: number;
-  purchasePrice: number;
-  currentPrice: number;
-  purchaseDate: string;
-  sector?: string;
-  notes?: string;
-  dayChange?: number;
-  dayChangePercent?: number;
-}
+const typeFromApi = (type: ApiInvestment['type']): FrontendInvestmentType => {
+  switch (type) {
+    case 'STOCK':
+      return 'stock';
+    case 'ETF':
+      return 'etf';
+    case 'BOND':
+      return 'bond';
+    case 'CRYPTO':
+      return 'crypto';
+    case 'MUTUAL_FUND':
+      return 'mutual-fund';
+    case 'OTHER':
+    default:
+      return 'other';
+  }
+};
 
-export interface Transaction {
-  id: string;
-  investmentId: string;
-  type: 'buy' | 'sell' | 'dividend' | 'split';
-  quantity: number;
-  price: number;
-  date: string;
-  notes?: string;
-}
+const transactionTypeToApi = (
+  type: DomainTransaction['type']
+): 'BUY' | 'SELL' | 'DIVIDEND' | 'SPLIT' | null => {
+  switch (type) {
+    case 'buy':
+      return 'BUY';
+    case 'sell':
+      return 'SELL';
+    case 'dividend':
+      return 'DIVIDEND';
+    case 'split':
+      return 'SPLIT';
+    default:
+      return null;
+  }
+};
 
-export interface PortfolioStats {
-  totalValue: number;
-  totalInvested: number;
-  totalGainLoss: number;
-  gainLossPercentage: number;
-  averageReturn: number;
-  diversificationScore: number;
-  dayChange?: number;
-  dayChangePercentage?: number;
-  bestPerformer?: { name: string; percentage: number };
-  worstPerformer?: { name: string; percentage: number };
-}
+const STORAGE_KEYS = {
+  investments: ['portfolioInvestments', 'portfolio_investments'],
+  transactions: ['portfolioTransactions', 'portfolio_transactions'],
+  migrationFlag: 'portfolio_backend_migration_v1_done',
+} as const;
 
-export interface RiskMetrics {
-  portfolioVolatility: number;
-  sharpeRatio: number;
-  beta: number;
-  maxDrawdown: number;
-  valueAtRisk: number;
-  riskLevel: 'conservative' | 'moderate' | 'aggressive';
-}
+// Re-export canonical domain types for legacy imports
+export type Portfolio = DomainPortfolio;
+export type Investment = DomainInvestment;
+export type Transaction = DomainTransaction;
 
 interface PortfolioContextType {
   // Portfolio data
@@ -258,6 +263,67 @@ const getSampleTransactions = (): Transaction[] => [
 ];
 
 // Safe localStorage helper
+
+const toDomainPortfolio = (p: ApiPortfolio | ApiPortfolioSummary | ApiPortfolioDetail): Portfolio => {
+  const investmentCount = (() => {
+    const v = (p as { investmentCount?: unknown }).investmentCount;
+    return typeof v === 'number' ? v : undefined;
+  })();
+
+  const shareCount = (() => {
+    const v = (p as { shareCount?: unknown }).shareCount;
+    return typeof v === 'number' ? v : undefined;
+  })();
+
+  const permission = (() => {
+    const v = (p as { permission?: unknown }).permission;
+    if (v === 'OWNER' || v === 'VIEW' || v === 'EDIT' || v === 'ADMIN') return v;
+    return undefined;
+  })();
+
+  const isOwner = (() => {
+    const v = (p as { isOwner?: unknown }).isOwner;
+    return typeof v === 'boolean' ? v : undefined;
+  })();
+
+  return {
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    isPublic: p.isPublic,
+    ownerId: p.ownerId,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+    investments: [],
+    sharedWith: [],
+    investmentCount,
+    shareCount,
+    permission,
+    isOwner,
+  };
+};
+
+const readJson = <T,>(key: string): T | null => {
+  try {
+    const raw = safeLocalStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+};
+
+const readFirstJson = <T,>(keys: readonly string[]): { value: T | null; foundKey: string | null } => {
+  for (const k of keys) {
+    const v = readJson<T>(k);
+    if (v != null) return { value: v, foundKey: k };
+  }
+  return { value: null, foundKey: null };
+};
+
+const hasPersistedData = (keys: readonly string[]): boolean => {
+  return keys.some(k => safeLocalStorage.getItem(k) != null);
+};
 const safeLocalStorage = {
   getItem: (key: string): string | null => {
     try {
@@ -279,12 +345,12 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [activePortfolio, setActivePortfolio] = useState<Portfolio | null>(null);
   const [investments, setInvestments] = useState<Investment[]>(() => {
-    const saved = safeLocalStorage.getItem('portfolio_investments');
-    return saved ? JSON.parse(saved) : getSamplePortfolio();
+    const { value } = readFirstJson<Investment[]>(STORAGE_KEYS.investments);
+    return Array.isArray(value) ? value : getSamplePortfolio();
   });
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = safeLocalStorage.getItem('portfolio_transactions');
-    return saved ? JSON.parse(saved) : getSampleTransactions();
+    const { value } = readFirstJson<Transaction[]>(STORAGE_KEYS.transactions);
+    return Array.isArray(value) ? value : getSampleTransactions();
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -308,12 +374,89 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
 
   // Persist to localStorage
   useEffect(() => {
-    safeLocalStorage.setItem('portfolio_investments', JSON.stringify(investments));
+    const serialized = JSON.stringify(investments);
+    for (const key of STORAGE_KEYS.investments) safeLocalStorage.setItem(key, serialized);
   }, [investments]);
 
   useEffect(() => {
-    safeLocalStorage.setItem('portfolio_transactions', JSON.stringify(transactions));
+    const serialized = JSON.stringify(transactions);
+    for (const key of STORAGE_KEYS.transactions) safeLocalStorage.setItem(key, serialized);
   }, [transactions]);
+
+  const migrateLocalStorageToBackendIfNeeded = async (): Promise<boolean> => {
+    if (!api.isAuthenticated()) return false;
+    if (!isOnline) return false;
+    if (safeLocalStorage.getItem(STORAGE_KEYS.migrationFlag) === 'true') return false;
+
+    const hasLocalInvestments = hasPersistedData(STORAGE_KEYS.investments);
+    const hasLocalTransactions = hasPersistedData(STORAGE_KEYS.transactions);
+    if (!hasLocalInvestments && !hasLocalTransactions) return false;
+
+    const localInvestments = readFirstJson<Investment[]>(STORAGE_KEYS.investments).value;
+    const localTransactions = readFirstJson<Transaction[]>(STORAGE_KEYS.transactions).value;
+    const investmentsList = Array.isArray(localInvestments) ? localInvestments : [];
+    const transactionsList = Array.isArray(localTransactions) ? localTransactions : [];
+
+    // If storage only contains demo/sample (no persisted keys), we don't get here.
+    if (investmentsList.length === 0 && transactionsList.length === 0) return false;
+
+    try {
+      const txByInvestment = new Map<string, Transaction[]>();
+      for (const tx of transactionsList) {
+        if (!txByInvestment.has(tx.investmentId)) txByInvestment.set(tx.investmentId, []);
+        txByInvestment.get(tx.investmentId)!.push(tx);
+      }
+
+      const payload = {
+        version: '1',
+        exportedAt: new Date().toISOString(),
+        portfolios: [
+          {
+            name: 'Migrated Portfolio',
+            description: 'Imported from local storage',
+            isPublic: false,
+            investments: investmentsList.map((inv) => {
+              const invTx = txByInvestment.get(inv.id) || [];
+              const supported = invTx
+                .map((t) => ({ t, apiType: transactionTypeToApi(t.type) }))
+                .filter((x): x is { t: Transaction; apiType: NonNullable<ReturnType<typeof transactionTypeToApi>> } =>
+                  Boolean(x.apiType)
+                );
+
+              return {
+                symbol: String(inv.symbol || '').toUpperCase(),
+                name: String(inv.name || ''),
+                type: inv.type,
+                quantity: Number(inv.quantity || 0),
+                purchasePrice: Number(inv.purchasePrice || 0),
+                purchaseDate: new Date(inv.purchaseDate).toISOString(),
+                sector: inv.sector,
+                notes: inv.notes,
+                transactions: supported.map(({ t, apiType }) => ({
+                  type: apiType,
+                  quantity: Number(t.quantity || 0),
+                  price: Number(t.price || 0),
+                  date: new Date(t.date).toISOString(),
+                  notes: t.notes,
+                })),
+              };
+            }),
+          },
+        ],
+      };
+
+      const imported = await api.importPortfolios(payload);
+      if (!imported.success || !imported.data || imported.data.importedCount < 1) {
+        return false;
+      }
+
+      safeLocalStorage.setItem(STORAGE_KEYS.migrationFlag, 'true');
+      return true;
+    } catch (e) {
+      console.warn('LocalStorage migration failed:', e);
+      return false;
+    }
+  };
 
   // Fetch portfolios from backend if authenticated
   useEffect(() => {
@@ -372,9 +515,23 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
     const response = await api.getPortfolios();
     
     if (response.success && response.data) {
-      setPortfolios(response.data.portfolios);
-      if (response.data.portfolios.length > 0 && !activePortfolio) {
-        await selectPortfolio(response.data.portfolios[0].id);
+      const mapped = response.data.portfolios.map(toDomainPortfolio);
+      setPortfolios(mapped);
+
+      if (mapped.length === 0) {
+        const migrated = await migrateLocalStorageToBackendIfNeeded();
+        if (migrated) {
+          const post = await api.getPortfolios();
+          if (post.success && post.data) {
+            const postMapped = post.data.portfolios.map(toDomainPortfolio);
+            setPortfolios(postMapped);
+            if (postMapped.length > 0) {
+              await selectPortfolio(postMapped[0].id);
+            }
+          }
+        }
+      } else if (!activePortfolio) {
+        await selectPortfolio(mapped[0].id);
       }
     } else if (response.error?.code === 'MISSING_TOKEN' || response.error?.code === 'INVALID_TOKEN') {
       // Clear stale tokens and use sample data
@@ -391,7 +548,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
     const response = await api.getPortfolio(id);
     
     if (response.success && response.data) {
-      setActivePortfolio(response.data.portfolio);
+      setActivePortfolio(toDomainPortfolio(response.data.portfolio));
       
       // Convert API investments to frontend format
       const apiInvestments = response.data.portfolio.investments || [];
@@ -399,7 +556,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
         id: inv.id,
         name: inv.name,
         symbol: inv.symbol,
-        type: inv.type.toLowerCase() as Investment['type'],
+        type: typeFromApi(inv.type),
         quantity: inv.quantity,
         purchasePrice: inv.purchasePrice,
         currentPrice: inv.currentPrice || inv.purchasePrice,
@@ -428,7 +585,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
     const response = await api.createPortfolio({ name, description });
     
     if (response.success && response.data) {
-      const newPortfolio = response.data.portfolio;
+      const newPortfolio = toDomainPortfolio(response.data.portfolio);
       setPortfolios(prev => [...prev, newPortfolio]);
       setIsLoading(false);
       return newPortfolio;
@@ -480,7 +637,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       const response = await api.addInvestment(activePortfolio.id, {
         symbol: investment.symbol,
         name: investment.name,
-        type: investment.type.toUpperCase() as ApiInvestment['type'],
+        type: typeToApi(investment.type),
         quantity: investment.quantity,
         purchasePrice: investment.purchasePrice,
         purchaseDate: new Date(investment.purchaseDate).toISOString(),
@@ -537,8 +694,8 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       if (!response.success) {
         // Rollback on failure
         setInvestments(prev => {
-          const saved = localStorage.getItem('portfolio_investments');
-          return saved ? JSON.parse(saved) : prev;
+          const { value } = readFirstJson<Investment[]>(STORAGE_KEYS.investments);
+          return Array.isArray(value) ? value : prev;
         });
         setError(response.error?.message || 'Failed to update investment');
         return false;
@@ -598,13 +755,14 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
     
     setTransactions(prev => [...prev, newTransaction]);
     
-    // Sync with backend if connected
-    if (activePortfolio && api.isAuthenticated()) {
+    // Sync with backend if connected (backend currently supports BUY/SELL/DIVIDEND/SPLIT)
+    const apiType = transactionTypeToApi(transaction.type);
+    if (activePortfolio && api.isAuthenticated() && apiType) {
       const response = await api.recordTransaction(
         activePortfolio.id, 
         transaction.investmentId,
         {
-          type: transaction.type.toUpperCase() as 'BUY' | 'SELL' | 'DIVIDEND' | 'SPLIT',
+          type: apiType,
           quantity: transaction.quantity,
           price: transaction.price,
           date: new Date(transaction.date).toISOString(),

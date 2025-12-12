@@ -7,6 +7,16 @@ vi.mock('../lib/prisma.js', () => {
     portfolio: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      create: vi.fn(),
+    },
+    investment: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+    transaction: {
+      create: vi.fn(),
     },
     portfolioActivity: {
       findMany: vi.fn(),
@@ -18,6 +28,7 @@ vi.mock('../lib/prisma.js', () => {
     },
     user: {
       findMany: vi.fn(),
+      findUnique: vi.fn(),
     },
   };
 
@@ -192,6 +203,184 @@ describe('collaboration routes (mocked prisma)', () => {
     expect(body.data.message).toBe('Access removed');
 
     expect((prisma as any).portfolioShare.delete).toHaveBeenCalledTimes(1);
+    expect((prisma as any).portfolioActivity.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('GET /api/v2/portfolios/export exports owned portfolios with investments and transactions', async () => {
+    const app = Fastify();
+
+    app.decorate('authenticate', async (request: any) => {
+      request.user = { id: 'user_1' };
+    });
+
+    await app.register(portfolioRoutes, { prefix: '/api/v2/portfolios' });
+
+    (prisma as any).portfolio.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        name: 'P1',
+        description: null,
+        isPublic: false,
+        investments: [
+          {
+            id: 'i1',
+            symbol: 'AAPL',
+            name: 'Apple',
+            type: 'STOCK',
+            quantity: '10',
+            purchasePrice: '100',
+            purchaseDate: new Date('2025-01-01T00:00:00.000Z'),
+            sector: null,
+            notes: null,
+            transactions: [
+              {
+                id: 't1',
+                investmentId: 'i1',
+                type: 'BUY',
+                quantity: '10',
+                price: '100',
+                fees: null,
+                date: new Date('2025-01-02T00:00:00.000Z'),
+                notes: null,
+              },
+            ],
+          },
+        ],
+        updatedAt: new Date('2025-01-03T00:00:00.000Z'),
+      },
+    ]);
+
+    const res = await app.inject({ method: 'GET', url: '/api/v2/portfolios/export' });
+    expect(res.statusCode).toBe(200);
+
+    const body = res.json() as any;
+    expect(body.success).toBe(true);
+    expect(body.data.version).toBe('1');
+    expect(Array.isArray(body.data.portfolios)).toBe(true);
+    expect(body.data.portfolios[0].name).toBe('P1');
+    expect(body.data.portfolios[0].investments[0].symbol).toBe('AAPL');
+    expect(body.data.portfolios[0].investments[0].transactions[0].type).toBe('BUY');
+
+    expect((prisma as any).portfolio.findMany).toHaveBeenCalledTimes(1);
+    const callArg = (prisma as any).portfolio.findMany.mock.calls[0][0];
+    expect(callArg.where).toEqual({ ownerId: 'user_1' });
+  });
+
+  it('POST /api/v2/portfolios/import creates portfolios for the user', async () => {
+    const app = Fastify();
+
+    app.decorate('authenticate', async (request: any) => {
+      request.user = { id: 'user_1' };
+    });
+
+    await app.register(portfolioRoutes, { prefix: '/api/v2/portfolios' });
+
+    (prisma as any).portfolio.create.mockResolvedValue({ id: 'p_new', name: 'Imported' });
+    (prisma as any).portfolioActivity.create.mockResolvedValue({ id: 'act_1' });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v2/portfolios/import',
+      payload: {
+        version: '1',
+        exportedAt: new Date('2025-01-01T00:00:00.000Z').toISOString(),
+        portfolios: [
+          {
+            name: 'Imported',
+            description: null,
+            isPublic: false,
+            investments: [
+              {
+                symbol: 'aapl',
+                name: 'Apple',
+                type: 'stock',
+                quantity: '10',
+                purchasePrice: '100',
+                purchaseDate: new Date('2025-01-01T00:00:00.000Z').toISOString(),
+                transactions: [
+                  {
+                    type: 'buy',
+                    quantity: '10',
+                    price: '100',
+                    fees: '0',
+                    date: new Date('2025-01-02T00:00:00.000Z').toISOString(),
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json() as any;
+    expect(body.success).toBe(true);
+    expect(body.data.importedCount).toBe(1);
+    expect(body.data.portfolios[0].id).toBe('p_new');
+
+    expect((prisma as any).portfolio.create).toHaveBeenCalledTimes(1);
+    expect((prisma as any).portfolioActivity.create).toHaveBeenCalledTimes(1);
+
+    const createArg = (prisma as any).portfolio.create.mock.calls[0][0];
+    expect(createArg.data.ownerId).toBe('user_1');
+    expect(createArg.data.investments.create[0].symbol).toBe('AAPL');
+    expect(createArg.data.investments.create[0].type).toBe('STOCK');
+    expect(createArg.data.investments.create[0].transactions.create[0].type).toBe('BUY');
+  });
+
+  it('POST /api/v2/portfolios/:id/investments/:investmentId/transactions records a transaction when user can edit', async () => {
+    const app = Fastify();
+
+    app.decorate('authenticate', async (request: any) => {
+      request.user = { id: 'user_1' };
+    });
+
+    await app.register(portfolioRoutes, { prefix: '/api/v2/portfolios' });
+
+    (prisma as any).portfolio.findUnique.mockResolvedValue({
+      id: 'p1',
+      ownerId: 'user_1',
+      shares: [],
+    });
+
+    (prisma as any).investment.findUnique.mockResolvedValue({
+      id: 'i1',
+      portfolioId: 'p1',
+      symbol: 'AAPL',
+    });
+
+    (prisma as any).transaction.create.mockResolvedValue({
+      id: 't1',
+      investmentId: 'i1',
+      type: 'BUY',
+      quantity: '10',
+      price: '100',
+      fees: null,
+      date: new Date('2025-01-02T00:00:00.000Z'),
+      notes: null,
+    });
+
+    (prisma as any).portfolioActivity.create.mockResolvedValue({ id: 'act_1' });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v2/portfolios/p1/investments/i1/transactions',
+      payload: {
+        type: 'BUY',
+        quantity: 10,
+        price: 100,
+        fees: 0,
+        date: new Date('2025-01-02T00:00:00.000Z').toISOString(),
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json() as any;
+    expect(body.success).toBe(true);
+    expect(body.data.transaction.id).toBe('t1');
+
+    expect((prisma as any).transaction.create).toHaveBeenCalledTimes(1);
     expect((prisma as any).portfolioActivity.create).toHaveBeenCalledTimes(1);
   });
 });

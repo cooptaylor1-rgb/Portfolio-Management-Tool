@@ -23,6 +23,75 @@ const addInvestmentSchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 
+const recordTransactionSchema = z.object({
+  type: z.enum(['BUY', 'SELL', 'DIVIDEND', 'SPLIT', 'TRANSFER_IN', 'TRANSFER_OUT']),
+  quantity: z.number().nonnegative(),
+  price: z.number().nonnegative(),
+  fees: z.number().nonnegative().optional(),
+  date: z.string().datetime(),
+  notes: z.string().max(1000).optional(),
+});
+
+const exportImportInvestmentTypeSchema = z
+  .union([
+    z.enum(['STOCK', 'BOND', 'ETF', 'MUTUAL_FUND', 'CRYPTO', 'OTHER']),
+    z.enum(['stock', 'bond', 'etf', 'mutual-fund', 'crypto', 'other']),
+    z.enum(['mutual_fund']),
+  ])
+  .transform((value) => {
+    const normalized = String(value).trim().toUpperCase().replace(/-/g, '_');
+    if (normalized === 'MUTUAL_FUND') return 'MUTUAL_FUND' as const;
+    if (['STOCK', 'BOND', 'ETF', 'CRYPTO', 'OTHER'].includes(normalized)) return normalized as any;
+    throw new Error('Invalid investment type');
+  });
+
+const exportImportTransactionTypeSchema = z
+  .union([
+    z.enum(['BUY', 'SELL', 'DIVIDEND', 'SPLIT', 'TRANSFER_IN', 'TRANSFER_OUT']),
+    z.enum(['buy', 'sell', 'dividend', 'split', 'transfer_in', 'transfer_out']),
+  ])
+  .transform((value) => String(value).trim().toUpperCase());
+
+const exportPortfolioSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional().nullable(),
+  isPublic: z.boolean().optional().default(false),
+  investments: z
+    .array(
+      z.object({
+        symbol: z.string().min(1).max(20),
+        name: z.string().min(1).max(255),
+        type: exportImportInvestmentTypeSchema,
+        quantity: z.coerce.number().nonnegative(),
+        purchasePrice: z.coerce.number().nonnegative(),
+        purchaseDate: z.string().datetime(),
+        sector: z.string().max(100).optional().nullable(),
+        notes: z.string().max(1000).optional().nullable(),
+        transactions: z
+          .array(
+            z.object({
+              type: exportImportTransactionTypeSchema,
+              quantity: z.coerce.number().nonnegative(),
+              price: z.coerce.number().nonnegative(),
+              fees: z.coerce.number().nonnegative().optional().nullable(),
+              date: z.string().datetime(),
+              notes: z.string().max(1000).optional().nullable(),
+            })
+          )
+          .optional()
+          .default([]),
+      })
+    )
+    .optional()
+    .default([]),
+});
+
+const importPayloadSchema = z.object({
+  version: z.string().optional(),
+  exportedAt: z.string().datetime().optional(),
+  portfolios: z.array(exportPortfolioSchema).min(1),
+});
+
 const sharePortfolioSchema = z.object({
   email: z.string().email(),
   permission: z.enum(['VIEW', 'EDIT', 'ADMIN']),
@@ -31,6 +100,130 @@ const sharePortfolioSchema = z.object({
 export async function portfolioRoutes(app: FastifyInstance) {
   // All routes require authentication
   app.addHook('preHandler', app.authenticate);
+
+  /**
+   * GET /api/portfolios/export
+   * Export all portfolios owned by the current user
+   */
+  app.get('/export', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = request.user.id;
+
+    const portfolios = await prisma.portfolio.findMany({
+      where: { ownerId: userId },
+      include: {
+        investments: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            transactions: {
+              orderBy: { date: 'asc' },
+            },
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const exportData = {
+      version: '1',
+      exportedAt: new Date().toISOString(),
+      portfolios: portfolios.map((p) => ({
+        name: p.name,
+        description: p.description,
+        isPublic: p.isPublic,
+        investments: p.investments.map((inv) => ({
+          symbol: inv.symbol,
+          name: inv.name,
+          type: inv.type,
+          quantity: inv.quantity,
+          purchasePrice: inv.purchasePrice,
+          purchaseDate: inv.purchaseDate.toISOString(),
+          sector: inv.sector,
+          notes: inv.notes,
+          transactions: inv.transactions.map((t) => ({
+            type: t.type,
+            quantity: t.quantity,
+            price: t.price,
+            fees: t.fees,
+            date: t.date.toISOString(),
+            notes: t.notes,
+          })),
+        })),
+      })),
+    };
+
+    return reply.send({
+      success: true,
+      data: exportData,
+    });
+  });
+
+  /**
+   * POST /api/portfolios/import
+   * Import portfolios for the current user (creates new portfolios)
+   */
+  app.post('/import', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = request.user.id;
+    const body = importPayloadSchema.parse(request.body);
+
+    const created: Array<{ id: string; name: string }> = [];
+
+    for (const portfolio of body.portfolios) {
+      const createdPortfolio = await prisma.portfolio.create({
+        data: {
+          name: portfolio.name,
+          description: portfolio.description ?? undefined,
+          isPublic: portfolio.isPublic ?? false,
+          ownerId: userId,
+          investments: {
+            create: (portfolio.investments ?? []).map((inv) => ({
+              symbol: inv.symbol.toUpperCase(),
+              name: inv.name,
+              type: inv.type as any,
+              quantity: inv.quantity,
+              purchasePrice: inv.purchasePrice,
+              purchaseDate: new Date(inv.purchaseDate),
+              sector: inv.sector ?? undefined,
+              notes: inv.notes ?? undefined,
+              transactions: {
+                create: (inv.transactions ?? []).map((t) => ({
+                  type: t.type as any,
+                  quantity: t.quantity,
+                  price: t.price,
+                  fees: t.fees ?? undefined,
+                  date: new Date(t.date),
+                  notes: t.notes ?? undefined,
+                })),
+              },
+            })),
+          },
+        },
+        select: { id: true, name: true },
+      });
+
+      created.push(createdPortfolio);
+
+      await prisma.portfolioActivity.create({
+        data: {
+          portfolioId: createdPortfolio.id,
+          userId,
+          action: 'IMPORTED',
+          details: {
+            investmentCount: portfolio.investments?.length ?? 0,
+          },
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        },
+      });
+    }
+
+    return reply.status(201).send({
+      success: true,
+      data: {
+        importedCount: created.length,
+        portfolios: created,
+      },
+    });
+  });
 
   /**
    * GET /api/portfolios/activity
@@ -456,6 +649,76 @@ export async function portfolioRoutes(app: FastifyInstance) {
       return reply.send({
         success: true,
         data: { message: 'Investment removed' },
+      });
+    }
+  );
+
+  /**
+   * POST /api/portfolios/:id/investments/:investmentId/transactions
+   * Record a transaction for an investment (edit/admin/owner)
+   */
+  app.post(
+    '/:id/investments/:investmentId/transactions',
+    async (
+      request: FastifyRequest<{ Params: { id: string; investmentId: string } }>,
+      reply: FastifyReply
+    ) => {
+      const userId = request.user.id;
+      const { id: portfolioId, investmentId } = request.params;
+      const body = recordTransactionSchema.parse(request.body);
+
+      const portfolio = await prisma.portfolio.findUnique({
+        where: { id: portfolioId },
+        include: { shares: { where: { userId } } },
+      });
+
+      if (!portfolio) {
+        throw new ApiError(404, 'PORTFOLIO_NOT_FOUND', 'Portfolio not found');
+      }
+
+      const canEdit =
+        portfolio.ownerId === userId ||
+        portfolio.shares.some((s) => ['EDIT', 'ADMIN'].includes(s.permission));
+
+      if (!canEdit) {
+        throw new ApiError(403, 'ACCESS_DENIED', 'You do not have permission to record transactions');
+      }
+
+      const investment = await prisma.investment.findUnique({
+        where: { id: investmentId },
+        select: { id: true, portfolioId: true, symbol: true },
+      });
+
+      if (!investment || investment.portfolioId !== portfolioId) {
+        throw new ApiError(404, 'INVESTMENT_NOT_FOUND', 'Investment not found');
+      }
+
+      const transaction = await prisma.transaction.create({
+        data: {
+          investmentId,
+          type: body.type,
+          quantity: body.quantity,
+          price: body.price,
+          fees: body.fees,
+          date: new Date(body.date),
+          notes: body.notes,
+        },
+      });
+
+      await prisma.portfolioActivity.create({
+        data: {
+          portfolioId,
+          userId,
+          action: 'TRANSACTION_RECORDED',
+          details: { symbol: investment.symbol, type: body.type },
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        },
+      });
+
+      return reply.status(201).send({
+        success: true,
+        data: { transaction },
       });
     }
   );
