@@ -103,13 +103,15 @@ export async function portfolioRoutes(app: FastifyInstance) {
 
   /**
    * GET /api/portfolios/export
-   * Export all portfolios owned by the current user
+   * Export all portfolios the current user can access (owned + shared)
    */
   app.get('/export', async (request: FastifyRequest, reply: FastifyReply) => {
     const userId = request.user.id;
 
     const portfolios = await prisma.portfolio.findMany({
-      where: { ownerId: userId },
+      where: {
+        OR: [{ ownerId: userId }, { shares: { some: { userId } } }],
+      },
       include: {
         investments: {
           orderBy: { createdAt: 'desc' },

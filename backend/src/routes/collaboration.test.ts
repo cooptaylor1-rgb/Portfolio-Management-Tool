@@ -207,7 +207,7 @@ describe('collaboration routes (mocked prisma)', () => {
     expect((prisma as any).portfolioActivity.create).toHaveBeenCalledTimes(1);
   });
 
-  it('GET /api/v2/portfolios/export exports owned portfolios with investments and transactions', async () => {
+  it('GET /api/v2/portfolios/export exports accessible portfolios (owned + shared) with investments and transactions', async () => {
     const app = Fastify();
 
     app.decorate('authenticate', async (request: any) => {
@@ -249,6 +249,27 @@ describe('collaboration routes (mocked prisma)', () => {
         ],
         updatedAt: new Date('2025-01-03T00:00:00.000Z'),
       },
+      {
+        id: 'p2',
+        name: 'Shared P2',
+        description: 'Shared',
+        isPublic: false,
+        investments: [
+          {
+            id: 'i2',
+            symbol: 'MSFT',
+            name: 'Microsoft',
+            type: 'STOCK',
+            quantity: '5',
+            purchasePrice: '200',
+            purchaseDate: new Date('2025-01-01T00:00:00.000Z'),
+            sector: null,
+            notes: null,
+            transactions: [],
+          },
+        ],
+        updatedAt: new Date('2025-01-04T00:00:00.000Z'),
+      },
     ]);
 
     const res = await app.inject({ method: 'GET', url: '/api/v2/portfolios/export' });
@@ -258,13 +279,18 @@ describe('collaboration routes (mocked prisma)', () => {
     expect(body.success).toBe(true);
     expect(body.data.version).toBe('1');
     expect(Array.isArray(body.data.portfolios)).toBe(true);
-    expect(body.data.portfolios[0].name).toBe('P1');
-    expect(body.data.portfolios[0].investments[0].symbol).toBe('AAPL');
-    expect(body.data.portfolios[0].investments[0].transactions[0].type).toBe('BUY');
+
+    const names = body.data.portfolios.map((p: any) => p.name);
+    expect(names).toContain('P1');
+    expect(names).toContain('Shared P2');
+
+    const p1 = body.data.portfolios.find((p: any) => p.name === 'P1');
+    expect(p1.investments[0].symbol).toBe('AAPL');
+    expect(p1.investments[0].transactions[0].type).toBe('BUY');
 
     expect((prisma as any).portfolio.findMany).toHaveBeenCalledTimes(1);
     const callArg = (prisma as any).portfolio.findMany.mock.calls[0][0];
-    expect(callArg.where).toEqual({ ownerId: 'user_1' });
+    expect(callArg.where).toEqual({ OR: [{ ownerId: 'user_1' }, { shares: { some: { userId: 'user_1' } } }] });
   });
 
   it('POST /api/v2/portfolios/import creates portfolios for the user', async () => {
