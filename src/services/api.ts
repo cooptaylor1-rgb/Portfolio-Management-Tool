@@ -244,6 +244,12 @@ class ApiClient {
     );
   }
 
+  async clearOwnedPortfolios() {
+    return this.request<{ deletedCount: number }>(`/portfolios/owned`, {
+      method: 'DELETE',
+    });
+  }
+
   async searchUsers(query: string, limit: number = 10) {
     const params = new URLSearchParams({ q: query, limit: String(limit) });
     return this.request<{ users: ApiUser[] }>(`/users/search?${params.toString()}`);

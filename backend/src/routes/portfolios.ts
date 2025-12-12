@@ -226,6 +226,25 @@ export async function portfolioRoutes(app: FastifyInstance) {
   });
 
   /**
+   * DELETE /api/portfolios/owned
+   * Delete all portfolios owned by the current user
+   */
+  app.delete('/owned', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = request.user.id;
+
+    const result = await prisma.portfolio.deleteMany({
+      where: { ownerId: userId },
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        deletedCount: result.count,
+      },
+    });
+  });
+
+  /**
    * GET /api/portfolios/activity
    * List recent activity across all portfolios the user can access
    */

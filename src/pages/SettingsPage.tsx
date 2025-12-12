@@ -237,13 +237,26 @@ export default function SettingsPage() {
 
   const handleClearData = () => {
     if (confirm('This will delete all your portfolio data. Are you sure?')) {
-      localStorage.removeItem('portfolioInvestments');
-      localStorage.removeItem('portfolioTransactions');
-      localStorage.removeItem('portfolio_investments');
-      localStorage.removeItem('portfolio_transactions');
-      localStorage.removeItem('watchlist');
-      localStorage.removeItem('tradeJournal');
-      window.location.reload();
+      const run = async () => {
+        if (api.isAuthenticated()) {
+          try {
+            await api.clearOwnedPortfolios();
+          } catch {
+            // Best-effort; still clear local state.
+          }
+        }
+
+        localStorage.removeItem('portfolioInvestments');
+        localStorage.removeItem('portfolioTransactions');
+        localStorage.removeItem('portfolio_investments');
+        localStorage.removeItem('portfolio_transactions');
+        localStorage.removeItem('portfolio_backend_migration_v1_done');
+        localStorage.removeItem('watchlist');
+        localStorage.removeItem('tradeJournal');
+        window.location.reload();
+      };
+
+      void run();
     }
   };
 

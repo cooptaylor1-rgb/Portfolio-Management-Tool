@@ -8,6 +8,7 @@ vi.mock('../lib/prisma.js', () => {
       findMany: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
+      deleteMany: vi.fn(),
     },
     investment: {
       findUnique: vi.fn(),
@@ -382,5 +383,27 @@ describe('collaboration routes (mocked prisma)', () => {
 
     expect((prisma as any).transaction.create).toHaveBeenCalledTimes(1);
     expect((prisma as any).portfolioActivity.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('DELETE /api/v2/portfolios/owned deletes all owned portfolios', async () => {
+    const app = Fastify();
+
+    app.decorate('authenticate', async (request: any) => {
+      request.user = { id: 'user_1' };
+    });
+
+    await app.register(portfolioRoutes, { prefix: '/api/v2/portfolios' });
+
+    (prisma as any).portfolio.deleteMany.mockResolvedValue({ count: 3 });
+
+    const res = await app.inject({ method: 'DELETE', url: '/api/v2/portfolios/owned' });
+    expect(res.statusCode).toBe(200);
+
+    const body = res.json() as any;
+    expect(body.success).toBe(true);
+    expect(body.data.deletedCount).toBe(3);
+
+    expect((prisma as any).portfolio.deleteMany).toHaveBeenCalledTimes(1);
+    expect((prisma as any).portfolio.deleteMany).toHaveBeenCalledWith({ where: { ownerId: 'user_1' } });
   });
 });
